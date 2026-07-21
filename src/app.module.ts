@@ -1,30 +1,44 @@
 import { Module } from '@nestjs/common';
+import { ConfigModule, ConfigService } from '@nestjs/config';
+import { TypeOrmModule } from '@nestjs/typeorm';
 import { AppController } from './app.controller';
 import { AppService } from './app.service';
-import { TypeOrmModule } from '@nestjs/typeorm'; 
-import { ConfigModule, ConfigService } from '@nestjs/config';
-import { APP_GUARD } from '@nestjs/core';
-import { JwtAuthGuard } from './auth/guards/jwt-auth.guard';
-import { RolesGuard } from './common/guards/roles.guard';
+import configuration, {
+  ApplicationConfiguration,
+  validateEnvironment,
+} from './config/configuration';
 
 @Module({
   imports: [
     ConfigModule.forRoot({
       isGlobal: true,
+      cache: true,
+      load: [configuration],
+      validate: validateEnvironment,
     }),
-
     TypeOrmModule.forRootAsync({
-      imports: [ConfigModule],
       inject: [ConfigService],
-      useFactory: (configService: ConfigService) => ({
+      useFactory: (
+        configService: ConfigService<ApplicationConfiguration, true>,
+      ) => ({
         type: 'postgres',
-        host: configService.get<string>('DB_HOST'),
-        port: configService.get<number>('DB_PORT'),
-        username: configService.get<string>('DB_USERNAME'),
-        password: configService.get<string>('DB_PASSWORD'),
-        database: configService.get<string>('DB_NAME'),
+        host: configService.getOrThrow('database.host', { infer: true }),
+        port: configService.getOrThrow('database.port', { infer: true }),
+        username: configService.getOrThrow('database.username', {
+          infer: true,
+        }),
+        password: configService.getOrThrow('database.password', {
+          infer: true,
+        }),
+        database: configService.getOrThrow('database.name', { infer: true }),
+        ssl: configService.getOrThrow('database.ssl', { infer: true })
+          ? { rejectUnauthorized: false }
+          : false,
+        synchronize: configService.getOrThrow('database.synchronize', {
+          infer: true,
+        }),
+        logging: configService.getOrThrow('database.logging', { infer: true }),
         entities: [__dirname + '/**/*.entity{.ts,.js}'],
-        synchronize: true, // Solo para desarrollo
       }),
     }),
   ],
