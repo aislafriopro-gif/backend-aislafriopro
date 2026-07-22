@@ -7,6 +7,9 @@ import configuration, {
   ApplicationConfiguration,
   validateEnvironment,
 } from './config/configuration';
+import { UsersModule } from './users/users.module';
+import { RolesModule } from './roles/roles.module';
+import { ServicesModule } from './services/services.module';
 
 @Module({
   imports: [
@@ -41,6 +44,9 @@ import configuration, {
         entities: [__dirname + '/**/*.entity{.ts,.js}'],
       }),
     }),
+    UsersModule,
+    RolesModule,
+    ServicesModule,
   ],
   controllers: [AppController],
   providers: [AppService],
