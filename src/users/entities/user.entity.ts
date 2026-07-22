@@ -1,6 +1,7 @@
 import { Entity, Column, PrimaryGeneratedColumn, ManyToOne, JoinColumn, OneToMany, CreateDateColumn, UpdateDateColumn, DeleteDateColumn } from 'typeorm';
 import { Role } from '../../roles/entities/roles.entity'
 import { Session } from '../../sessions/entities/session.entity';
+import { AuditLog } from '../../audit/entities/audit-action.entity';
 
 @Entity('users')
 export class User {
@@ -26,6 +27,8 @@ export class User {
     @OneToMany(() => Session, (session) => session.user)
     sessions!: Session[];
 
+    @OneToMany(() => AuditLog, (auditLog) => auditLog.user)
+    auditLogs!: AuditLog[];
 
     @CreateDateColumn()
     createdAt!: Date;
