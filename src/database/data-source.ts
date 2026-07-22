@@ -1,9 +1,6 @@
 import 'dotenv/config';
 import { DataSource } from 'typeorm';
 import configuration, { validateEnvironment } from '../config/configuration';
-import { Role } from '../roles/entities/roles.entity';
-import { Session } from '../sessions/entities/session.entity';
-import { User } from '../users/entities/user.entity';
 
 validateEnvironment(process.env);
 const appConfig = configuration();
@@ -18,6 +15,6 @@ export default new DataSource({
   ssl: appConfig.database.ssl ? { rejectUnauthorized: false } : false,
   synchronize: appConfig.database.synchronize,
   logging: appConfig.database.logging,
-  entities: [User, Role, Session],
+  entities: ['./**/*.entity{.ts,.js}'],
   migrations: ['src/database/migrations/*.ts'],
 });
