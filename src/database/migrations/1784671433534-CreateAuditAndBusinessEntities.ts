@@ -11,7 +11,7 @@ export class Migrations1784671433534 implements MigrationInterface {
         await queryRunner.query(`CREATE INDEX "IDX_cfa83f61e4d27a87fcae1e025a" ON "audit_logs" ("userId") `);
         await queryRunner.query(`CREATE INDEX "IDX_c0ec52f017ac513f07ee6e749e" ON "audit_logs" ("entityName", "entityId") `);
         await queryRunner.query(`CREATE TABLE "services" ("id" uuid NOT NULL DEFAULT uuid_generate_v4(), "name" character varying(150) NOT NULL, "slug" character varying(160) NOT NULL, "description" text NOT NULL, "shortDescription" character varying(300), "imageUrl" character varying(500), "isActive" boolean NOT NULL DEFAULT true, "displayOrder" integer, "createdAt" TIMESTAMP NOT NULL DEFAULT now(), "updatedAt" TIMESTAMP NOT NULL DEFAULT now(), "deletedAt" TIMESTAMP, CONSTRAINT "PK_ba2d347a3168a296416c6c5ccb2" PRIMARY KEY ("id"))`);
-        await queryRunner.query(`CREATE UNIQUE INDEX "IDX_02cf0d0f46e11d22d952f62367" ON "services" ("slug") `);
+        await queryRunner.query(`CREATE UNIQUE INDEX "UQ_services_slug_active" ON "services" ("slug") WHERE "deletedAt" IS NULL`);
         await queryRunner.query(`CREATE INDEX "IDX_9c7f613a5de2270db74d471e21" ON "services" ("displayOrder") `);
         await queryRunner.query(`CREATE INDEX "IDX_6d149e510fc4de20510200ed76" ON "services" ("isActive") `);
         await queryRunner.query(`CREATE TYPE "public"."site_settings_type_enum" AS ENUM('STRING', 'NUMBER', 'BOOLEAN', 'JSON')`);
@@ -31,7 +31,7 @@ export class Migrations1784671433534 implements MigrationInterface {
         await queryRunner.query(`DROP TYPE "public"."site_settings_type_enum"`);
         await queryRunner.query(`DROP INDEX "public"."IDX_6d149e510fc4de20510200ed76"`);
         await queryRunner.query(`DROP INDEX "public"."IDX_9c7f613a5de2270db74d471e21"`);
-        await queryRunner.query(`DROP INDEX "public"."IDX_02cf0d0f46e11d22d952f62367"`);
+        await queryRunner.query(`DROP INDEX "public"."UQ_services_slug_active"`);
         await queryRunner.query(`DROP TABLE "services"`);
         await queryRunner.query(`DROP INDEX "public"."IDX_c0ec52f017ac513f07ee6e749e"`);
         await queryRunner.query(`DROP INDEX "public"."IDX_cfa83f61e4d27a87fcae1e025a"`);
