@@ -1,14 +1,18 @@
 import {
-  Entity,
-  PrimaryGeneratedColumn,
   Column,
   CreateDateColumn,
-  UpdateDateColumn,
   DeleteDateColumn,
+  Entity,
   Index,
+  PrimaryGeneratedColumn,
+  UpdateDateColumn,
 } from 'typeorm';
 
 @Entity('services')
+@Index('UQ_services_slug_active', ['slug'], {
+  unique: true,
+  where: '"deletedAt" IS NULL',
+})
 @Index(['isActive'])
 @Index(['displayOrder'])
 export class Service {
@@ -18,7 +22,6 @@ export class Service {
   @Column({ type: 'varchar', length: 150 })
   name!: string;
 
-  @Index({ unique: true })
   @Column({ type: 'varchar', length: 160 })
   slug!: string;
 
