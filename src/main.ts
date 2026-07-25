@@ -46,6 +46,8 @@ async function bootstrap() {
   app.useGlobalFilters(new GlobalExceptionFilter());
   app.useGlobalInterceptors(new LoggingInterceptor());
 
+  app.setGlobalPrefix('api/v1');
+
   if (swaggerEnabled) {
     const swaggerConfiguration = new DocumentBuilder()
       .setTitle('Aisla Frío Pro API')
@@ -78,6 +80,12 @@ async function bootstrap() {
   }
 
   await app.listen(port);
+  console.log(`🚀 Aplicacion iniciada en http://localhost:${port}`);
+  if (swaggerEnabled) {
+    console.log(
+      `📚 Swagger disponible en http://localhost:${port}/${swaggerPath}`,
+    );
+  }
 }
 
 void bootstrap();

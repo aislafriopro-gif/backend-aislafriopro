@@ -10,6 +10,7 @@ import configuration, {
 import { UsersModule } from './users/users.module';
 import { RolesModule } from './roles/roles.module';
 import { ServicesModule } from './services/services.module';
+import { HealthModule } from './health/health.module';
 
 @Module({
   imports: [
@@ -47,6 +48,7 @@ import { ServicesModule } from './services/services.module';
     UsersModule,
     RolesModule,
     ServicesModule,
+    HealthModule,
   ],
   controllers: [AppController],
   providers: [AppService],
