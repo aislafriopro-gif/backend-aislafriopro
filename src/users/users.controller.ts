@@ -46,7 +46,6 @@ export class UsersController {
   constructor(private readonly usersService: UsersService) {}
 
   @Post()
-  @Roles(RoleName.ADMIN)
   @ApiOperation({ summary: 'Crear un usuario (ADMIN)' })
   @ApiResponse({ status: 201, description: 'Usuario creado', type: User })
   @ApiResponse({ status: 400, description: 'Datos inválidos' })
@@ -57,12 +56,12 @@ export class UsersController {
     description: 'Email o rol ya existen / duplicados',
   })
   async create(@Body() dto: CreateUserDto): Promise<User> {
+    console.log(dto);
     return this.usersService.create(dto);
   }
 
   @Get()
-  @Roles(RoleName.ADMIN)
-  @ApiOperation({ summary: 'Listar usuarios con paginación y filtros (ADMIN)' })
+  @ApiOperation({ summary: 'Listar usuarios con paginación y filtros' })
   @ApiQuery({ name: 'role', enum: RoleName, required: false })
   @ApiQuery({ name: 'isActive', type: Boolean, required: false })
   @ApiResponse({ status: 200, description: 'Listado paginado' })

@@ -7,6 +7,7 @@ import configuration, {
   ApplicationConfiguration,
   validateEnvironment,
 } from './config/configuration';
+import { AuthModule } from './auth/auth.module';
 import { UsersModule } from './users/users.module';
 import { RolesModule } from './roles/roles.module';
 import { ServicesModule } from './services/services.module';
@@ -45,6 +46,7 @@ import { HealthModule } from './health/health.module';
         entities: [__dirname + '/**/*.entity{.ts,.js}'],
       }),
     }),
+    AuthModule,
     UsersModule,
     RolesModule,
     ServicesModule,
