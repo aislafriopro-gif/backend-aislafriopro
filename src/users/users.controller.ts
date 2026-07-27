@@ -23,6 +23,7 @@ import {
 import { JwtAuthGuard } from '../auth/guards/jwt-auth.guard';
 import { RolesGuard } from '../common/guards/roles.guard';
 import { Roles } from '../common/decorators/roles.decorator';
+import { Public } from '../common/decorators/public.decorator';
 import { CurrentUser } from '../common/decorators/current-user.decorator';
 import { RoleName } from '../roles/entities/roles.entity';
 import { UsersService } from './users.service';
@@ -45,6 +46,7 @@ interface RequestUser {
 export class UsersController {
   constructor(private readonly usersService: UsersService) {}
 
+  @Public()
   @Post()
   @ApiOperation({ summary: 'Crear un usuario (ADMIN)' })
   @ApiResponse({ status: 201, description: 'Usuario creado', type: User })
@@ -56,10 +58,10 @@ export class UsersController {
     description: 'Email o rol ya existen / duplicados',
   })
   async create(@Body() dto: CreateUserDto): Promise<User> {
-    console.log(dto);
     return this.usersService.create(dto);
   }
 
+  @Public()
   @Get()
   @ApiOperation({ summary: 'Listar usuarios con paginación y filtros' })
   @ApiQuery({ name: 'role', enum: RoleName, required: false })
