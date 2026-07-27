@@ -3,6 +3,7 @@ import { ConfigModule, ConfigService } from '@nestjs/config';
 import { TypeOrmModule } from '@nestjs/typeorm';
 import { AppController } from './app.controller';
 import { AppService } from './app.service';
+import { AuthModule } from './auth/auth.module';
 import configuration, {
   ApplicationConfiguration,
   validateEnvironment,
@@ -49,6 +50,7 @@ import { HealthModule } from './health/health.module';
     RolesModule,
     ServicesModule,
     HealthModule,
+    AuthModule,
   ],
   controllers: [AppController],
   providers: [AppService],
