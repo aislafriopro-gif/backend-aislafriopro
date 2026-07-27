@@ -15,6 +15,6 @@ export default new DataSource({
   ssl: appConfig.database.ssl ? { rejectUnauthorized: false } : false,
   synchronize: appConfig.database.synchronize,
   logging: appConfig.database.logging,
-  entities: ['./**/*.entity{.ts,.js}'],
-  migrations: ['src/database/migrations/*.ts'],
+  entities: [__dirname + '/../**/*.entity{.ts,.js}'],
+  migrations: [__dirname + '/migrations/*{.ts,.js}'],
 });
