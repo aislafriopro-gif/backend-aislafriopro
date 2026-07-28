@@ -3,10 +3,12 @@ import { ConfigModule, ConfigService } from '@nestjs/config';
 import { TypeOrmModule } from '@nestjs/typeorm';
 import { AppController } from './app.controller';
 import { AppService } from './app.service';
+import { AuthModule } from './auth/auth.module';
 import configuration, {
   ApplicationConfiguration,
   validateEnvironment,
 } from './config/configuration';
+import { AuthModule } from './auth/auth.module';
 import { UsersModule } from './users/users.module';
 import { RolesModule } from './roles/roles.module';
 import { ServicesModule } from './services/services.module';
@@ -45,10 +47,12 @@ import { HealthModule } from './health/health.module';
         entities: [__dirname + '/**/*.entity{.ts,.js}'],
       }),
     }),
+    AuthModule,
     UsersModule,
     RolesModule,
     ServicesModule,
     HealthModule,
+    AuthModule,
   ],
   controllers: [AppController],
   providers: [AppService],

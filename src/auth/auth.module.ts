@@ -1,23 +1,32 @@
 import { Module } from '@nestjs/common';
+import { ConfigModule, ConfigService } from '@nestjs/config';
 import { JwtModule } from '@nestjs/jwt';
 import { PassportModule } from '@nestjs/passport';
-import { ConfigModule, ConfigService } from '@nestjs/config';
 import { TypeOrmModule } from '@nestjs/typeorm';
-import type { StringValue } from 'ms';
-import { JwtStrategy } from './strategies/jwt.strategy';
+import type { ApplicationConfiguration } from '../config/configuration';
 import { User } from '../users/entities/user.entity';
+import { JwtStrategy } from './strategies/jwt.strategy';
 
 @Module({
   imports: [
     TypeOrmModule.forFeature([User]),
-    PassportModule.register({ defaultStrategy: 'jwt' }),
+    PassportModule.register({
+      defaultStrategy: 'jwt',
+      session: false,
+    }),
     JwtModule.registerAsync({
       imports: [ConfigModule],
       inject: [ConfigService],
-      useFactory: (configService: ConfigService) => ({
-        secret: configService.get<string>('JWT_SECRET'),
+      useFactory: (
+        configService: ConfigService<ApplicationConfiguration, true>,
+      ) => ({
+        secret: configService.getOrThrow('jwt.secret', {
+          infer: true,
+        }),
         signOptions: {
-          expiresIn: (configService.get<string>('JWT_EXPIRES_IN') ?? '15m') as StringValue,
+          expiresIn: configService.getOrThrow('jwt.expiresIn', {
+            infer: true,
+          }),
         },
       }),
     }),
