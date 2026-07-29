@@ -70,4 +70,26 @@ export class RolesController {
   ): Promise<PaginatedResponse<Role>> {
     return this.rolesService.findAllWithDeleted(pagination);
   }
+
+  @Get()
+  @Roles(RoleName.ADMIN)
+  @ApiOperation({ summary: 'Listar todos los roles activos (ADMIN)' })
+  @ApiResponse({ status: 200, description: 'Listado de roles', type: [Role] })
+  @ApiResponse({ status: 401, description: 'No autenticado' })
+  @ApiResponse({ status: 403, description: 'Sin permisos' })
+  async findAll(): Promise<Role[]> {
+    return this.rolesService.findAll();
+  }
+
+  @Get(':id')
+  @Roles(RoleName.ADMIN)
+  @ApiOperation({ summary: 'Obtener un rol por ID (ADMIN)' })
+  @ApiParam({ name: 'id', type: 'string', format: 'uuid' })
+  @ApiResponse({ status: 200, description: 'Rol encontrado', type: Role })
+  @ApiResponse({ status: 401, description: 'No autenticado' })
+  @ApiResponse({ status: 403, description: 'Sin permisos' })
+  @ApiResponse({ status: 404, description: 'Rol no encontrado' })
+  async findOne(@Param('id', new ParseUUIDPipe()) id: string): Promise<Role> {
+    return this.rolesService.findOneById(id);
+  }
 }
