@@ -54,9 +54,11 @@ export class UsersService {
       );
     }
 
-    const role = await this.roleRepository.findOneBy({ name: dto.roleName });
-    if (!role) {
-      throw new NotFoundException(`Role with name "${dto.roleName}" not found`);
+    const defaultRole = await this.roleRepository.findOneBy({
+      name: RoleName.USER,
+    });
+    if (!defaultRole) {
+      throw new NotFoundException('Default role USER not found in catalog');
     }
 
     const hashedPassword = await bcrypt.hash(dto.password, BCRYPT_SALT_ROUNDS);
@@ -64,7 +66,7 @@ export class UsersService {
       name: dto.name,
       email: dto.email,
       password: hashedPassword,
-      role,
+      role: defaultRole,
     });
 
     const savedUser = await this.userRepository.save(user);
