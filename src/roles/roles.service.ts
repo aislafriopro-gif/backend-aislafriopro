@@ -66,4 +66,18 @@ export class RolesService implements OnModuleInit {
     });
     return buildPaginatedResponse(data, total, pagination.page, pagination.limit);
   }
+
+  async findAll(): Promise<Role[]> {
+    return this.roleRepository.find({
+      order: { name: 'ASC' },
+    });
+  }
+
+  async findOneById(id: string): Promise<Role> {
+    const role = await this.roleRepository.findOne({ where: { id } });
+    if (!role) {
+      throw new NotFoundException(`Role with id "${id}" not found`);
+    }
+    return role;
+  }
 }
