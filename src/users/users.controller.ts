@@ -49,7 +49,7 @@ export class UsersController {
 
   @Public()
   @Post()
-  @ApiOperation({ summary: 'Crear un usuario (ADMIN)' })
+  @ApiOperation({ summary: 'Crear un usuario' })
   @ApiResponse({ status: 201, description: 'Usuario creado', type: User })
   @ApiResponse({ status: 400, description: 'Datos inválidos' })
   @ApiResponse({ status: 401, description: 'No autenticado' })
