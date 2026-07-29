@@ -31,6 +31,7 @@ import { User } from './entities/user.entity';
 import { PaginatedResponse } from '../common/pagination';
 import { CreateUserDto } from './dto/create-user.dto';
 import { UpdateUserDto } from './dto/update-user.dto';
+import { AssignRoleDto } from './dto/assign-role.dto';
 import { FindUsersQueryDto } from './dto/find-users-query.dto';
 
 interface RequestUser {
@@ -154,5 +155,36 @@ export class UsersController {
   @ApiResponse({ status: 409, description: 'El usuario no está eliminado' })
   async restore(@Param('id', new ParseUUIDPipe()) id: string): Promise<User> {
     return this.usersService.restore(id);
+  }
+
+  @Patch(':id/role')
+  @Roles(RoleName.ADMIN)
+  @ApiOperation({
+    summary: 'Asignar un rol a un usuario (ADMIN)',
+    description:
+      'Solo administradores pueden asignar roles. Un admin no puede reasignarse su propio rol. No se puede dejar el sistema sin al menos un admin activo.',
+  })
+  @ApiParam({ name: 'id', type: 'string', format: 'uuid' })
+  @ApiResponse({
+    status: 200,
+    description: 'Usuario con rol actualizado',
+    type: User,
+  })
+  @ApiResponse({ status: 401, description: 'No autenticado' })
+  @ApiResponse({
+    status: 403,
+    description: 'No es admin o intenta reasignarse su propio rol',
+  })
+  @ApiResponse({ status: 404, description: 'Usuario o rol no encontrado' })
+  @ApiResponse({
+    status: 409,
+    description: 'El usuario es el último admin activo del sistema',
+  })
+  async assignRole(
+    @Param('id', new ParseUUIDPipe()) id: string,
+    @Body() dto: AssignRoleDto,
+    @CurrentUser() requestUser: RequestUser,
+  ): Promise<User> {
+    return this.usersService.assignRole(id, dto.roleId, requestUser);
   }
 }

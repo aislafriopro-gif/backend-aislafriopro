@@ -196,4 +196,59 @@ export class UsersService {
       pagination.limit,
     );
   }
+
+  async assignRole(
+    userId: string,
+    roleId: string,
+    actingUser?: RequestUser,
+  ): Promise<User> {
+    const user = await this.userRepository.findOne({
+      where: { id: userId },
+      relations: { role: true },
+    });
+    if (!user) {
+      throw new NotFoundException(`User with id "${userId}" not found`);
+    }
+
+    const newRole = await this.roleRepository.findOne({
+      where: { id: roleId },
+    });
+    if (!newRole) {
+      throw new NotFoundException(`Role with id "${roleId}" not found`);
+    }
+
+    if (actingUser && actingUser.userId === userId) {
+      throw new ForbiddenException(
+        'Un admin no puede reasignarse su propio rol',
+      );
+    }
+
+    if (user.role.name === RoleName.ADMIN && newRole.name !== RoleName.ADMIN) {
+      const activeAdminsCount = await this.userRepository
+        .createQueryBuilder('user')
+        .innerJoin('user.role', 'role')
+        .where('role.name = :roleName', { roleName: RoleName.ADMIN })
+        .andWhere('user.deletedAt IS NULL')
+        .getCount();
+
+      if (activeAdminsCount <= 1) {
+        throw new ConflictException(
+          'No se puede cambiar el rol del último admin activo del sistema',
+        );
+      }
+    }
+
+    await this.userRepository.update(userId, { role: newRole });
+    return this.findOne(userId);
+  }
+
+  async promoteToClient(userId: string): Promise<User> {
+    const clientRole = await this.roleRepository.findOneBy({
+      name: RoleName.CLIENT,
+    });
+    if (!clientRole) {
+      throw new NotFoundException('Role CLIENT not found in catalog');
+    }
+    return this.assignRole(userId, clientRole.id);
+  }
 }
