@@ -14,6 +14,12 @@ import { AuditLog } from '../../audit/entities/audit-action.entity';
 import { Role } from '../../roles/entities/roles.entity';
 import { Session } from '../../sessions/entities/session.entity';
 
+export enum UserStatus {
+  ACTIVE = 'ACTIVE',
+  INACTIVE = 'INACTIVE',
+  SUSPENDED = 'SUSPENDED',
+}
+
 @Entity('users')
 @Index('UQ_users_email_active', ['email'], {
   unique: true,
@@ -31,6 +37,20 @@ export class User {
 
   @Column({ type: 'varchar', nullable: false })
   password!: string;
+
+  @Column({ type: 'varchar', length: 20, nullable: true })
+  phone!: string | null;
+
+  @Column({
+    type: 'enum',
+    enum: UserStatus,
+    default: UserStatus.ACTIVE,
+  })
+  @Index('IDX_users_status')
+  status!: UserStatus;
+
+  @Column({ type: 'timestamp', nullable: true })
+  lastLoginAt!: Date | null;
 
   @ManyToOne(() => Role, (role) => role.users, {
     eager: true,
