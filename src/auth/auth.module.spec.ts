@@ -1,16 +1,24 @@
 import { MODULE_METADATA } from '@nestjs/common/constants';
 import { JwtModule } from '@nestjs/jwt';
 import { PassportModule } from '@nestjs/passport';
+import { SessionsModule } from '../sessions/sessions.module';
 import { AuthModule } from './auth.module';
 import { AuthService } from './auth.service';
 import { JwtStrategy } from './strategies/jwt.strategy';
 
 describe('AuthModule', () => {
+  const getImports = (): unknown[] =>
+    Reflect.getMetadata(MODULE_METADATA.IMPORTS, AuthModule) as unknown[];
+
   const getProviders = (): unknown[] =>
     Reflect.getMetadata(MODULE_METADATA.PROVIDERS, AuthModule) as unknown[];
 
   const getExports = (): unknown[] =>
     Reflect.getMetadata(MODULE_METADATA.EXPORTS, AuthModule) as unknown[];
+
+  it('debe importar SessionsModule para persistir refresh tokens', () => {
+    expect(getImports()).toContain(SessionsModule);
+  });
 
   it('debe registrar AuthService y JwtStrategy como providers', () => {
     const providers = getProviders();
