@@ -1,0 +1,42 @@
+import { MODULE_METADATA } from '@nestjs/common/constants';
+import { JwtModule } from '@nestjs/jwt';
+import { PassportModule } from '@nestjs/passport';
+import { AuthModule } from './auth.module';
+import { AuthService } from './auth.service';
+import { JwtStrategy } from './strategies/jwt.strategy';
+
+describe('AuthModule', () => {
+  const getProviders = (): unknown[] =>
+    Reflect.getMetadata(MODULE_METADATA.PROVIDERS, AuthModule) as unknown[];
+
+  const getExports = (): unknown[] =>
+    Reflect.getMetadata(MODULE_METADATA.EXPORTS, AuthModule) as unknown[];
+
+  it('debe registrar AuthService y JwtStrategy como providers', () => {
+    const providers = getProviders();
+
+    expect(providers).toEqual(
+      expect.arrayContaining([AuthService, JwtStrategy]),
+    );
+  });
+
+  it('debe registrar AuthService y JwtStrategy una sola vez', () => {
+    const providers = getProviders();
+
+    expect(
+      providers.filter((provider) => provider === AuthService),
+    ).toHaveLength(1);
+
+    expect(
+      providers.filter((provider) => provider === JwtStrategy),
+    ).toHaveLength(1);
+  });
+
+  it('debe exportar AuthService y los módulos de autenticación', () => {
+    const exportedProviders = getExports();
+
+    expect(exportedProviders).toEqual(
+      expect.arrayContaining([AuthService, PassportModule, JwtModule]),
+    );
+  });
+});
