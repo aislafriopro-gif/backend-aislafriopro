@@ -1,8 +1,9 @@
 import { ApiProperty } from '@nestjs/swagger';
 import { Transform } from 'class-transformer';
-import { IsBoolean, IsEnum, IsOptional } from 'class-validator';
+import { IsBoolean, IsEnum, IsOptional, IsString } from 'class-validator';
 import { PaginationParamsDto } from '../../common/pagination';
 import { RoleName } from '../../roles/entities/roles.entity';
+import { UserStatus } from '../entities/user.entity';
 
 export class FindUsersQueryDto extends PaginationParamsDto {
   @ApiProperty({
@@ -15,6 +16,15 @@ export class FindUsersQueryDto extends PaginationParamsDto {
   role?: RoleName;
 
   @ApiProperty({
+    description: 'Filtrar por estado del usuario',
+    enum: UserStatus,
+    required: false,
+  })
+  @IsEnum(UserStatus)
+  @IsOptional()
+  status?: UserStatus;
+
+  @ApiProperty({
     description:
       'Filtrar por estado activo/inactivo (true = activo, false = soft-deleted)',
     example: true,
@@ -24,4 +34,14 @@ export class FindUsersQueryDto extends PaginationParamsDto {
   @IsBoolean()
   @IsOptional()
   isActive?: boolean;
+
+  @ApiProperty({
+    description:
+      'Buscar por nombre o email (búsqueda parcial, case insensitive)',
+    example: 'juan',
+    required: false,
+  })
+  @IsString()
+  @IsOptional()
+  search?: string;
 }

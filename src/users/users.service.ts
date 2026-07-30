@@ -7,7 +7,7 @@ import {
 import { InjectRepository } from '@nestjs/typeorm';
 import { Repository } from 'typeorm';
 import * as bcrypt from 'bcrypt';
-import { User } from './entities/user.entity';
+import { User, UserStatus } from './entities/user.entity';
 import { Role, RoleName } from '../roles/entities/roles.entity';
 import {
   PaginationParamsDto,
@@ -16,11 +16,17 @@ import {
 } from '../common/pagination';
 import { CreateUserDto } from './dto/create-user.dto';
 import { UpdateUserDto } from './dto/update-user.dto';
+import { AuditService } from '../audit/audit.service';
+import { AuditAction } from '../audit/entities/audit-action.entity';
+import { SessionsService } from '../sessions/sessions.service';
 
 const USER_PUBLIC_FIELDS: (keyof User)[] = [
   'id',
   'name',
   'email',
+  'phone',
+  'status',
+  'lastLoginAt',
   'createdAt',
   'updatedAt',
   'deletedAt',
@@ -34,6 +40,11 @@ interface RequestUser {
   role: RoleName;
 }
 
+interface RequestContext {
+  ipAddress?: string | null;
+  userAgent?: string | null;
+}
+
 @Injectable()
 export class UsersService {
   constructor(
@@ -41,6 +52,8 @@ export class UsersService {
     private readonly userRepository: Repository<User>,
     @InjectRepository(Role)
     private readonly roleRepository: Repository<Role>,
+    private readonly auditService: AuditService,
+    private readonly sessionsService: SessionsService,
   ) {}
 
   async create(dto: CreateUserDto): Promise<User> {
@@ -75,7 +88,12 @@ export class UsersService {
 
   async findAll(
     pagination: PaginationParamsDto,
-    filters?: { role?: RoleName; isActive?: boolean },
+    filters?: {
+      role?: RoleName;
+      isActive?: boolean;
+      status?: UserStatus;
+      search?: string;
+    },
   ): Promise<PaginatedResponse<User>> {
     const query = this.userRepository
       .createQueryBuilder('user')
@@ -89,10 +107,21 @@ export class UsersService {
       query.andWhere('role.name = :roleName', { roleName: filters.role });
     }
 
+    if (filters?.status) {
+      query.andWhere('user.status = :status', { status: filters.status });
+    }
+
     if (filters?.isActive === false) {
       query.andWhere('user.deletedAt IS NOT NULL');
     } else {
       query.andWhere('user.deletedAt IS NULL');
+    }
+
+    if (filters?.search) {
+      query.andWhere(
+        '(LOWER(user.name) LIKE LOWER(:search) OR LOWER(user.email) LIKE LOWER(:search))',
+        { search: `%${filters.search}%` },
+      );
     }
 
     const [data, total] = await query.getManyAndCount();
@@ -124,6 +153,7 @@ export class UsersService {
     id: string,
     dto: UpdateUserDto,
     requestUser: RequestUser,
+    requestContext?: RequestContext,
   ): Promise<User> {
     const user = await this.userRepository.findOne({
       where: { id },
@@ -153,7 +183,32 @@ export class UsersService {
       }
     }
 
+    const previousData: Record<string, any> = {};
+    const newData: Record<string, any> = {};
+
+    for (const key of Object.keys(dto) as (keyof UpdateUserDto)[]) {
+      const newValue = dto[key];
+      if (newValue !== undefined && newValue !== user[key as keyof User]) {
+        previousData[key] = user[key as keyof User];
+        newData[key] = newValue;
+      }
+    }
+
     await this.userRepository.update(id, dto);
+
+    if (Object.keys(newData).length > 0) {
+      await this.auditService.log({
+        action: AuditAction.UPDATE,
+        entityName: 'User',
+        entityId: id,
+        userId: requestUser.userId,
+        previousData,
+        newData,
+        ipAddress: requestContext?.ipAddress ?? null,
+        userAgent: requestContext?.userAgent ?? null,
+      });
+    }
+
     return this.findOne(id);
   }
 
@@ -203,6 +258,7 @@ export class UsersService {
     userId: string,
     roleId: string,
     actingUser?: RequestUser,
+    requestContext?: RequestContext,
   ): Promise<User> {
     const user = await this.userRepository.findOne({
       where: { id: userId },
@@ -231,6 +287,7 @@ export class UsersService {
         .innerJoin('user.role', 'role')
         .where('role.name = :roleName', { roleName: RoleName.ADMIN })
         .andWhere('user.deletedAt IS NULL')
+        .andWhere('user.status = :status', { status: UserStatus.ACTIVE })
         .getCount();
 
       if (activeAdminsCount <= 1) {
@@ -238,10 +295,90 @@ export class UsersService {
           'No se puede cambiar el rol del último admin activo del sistema',
         );
       }
+
+      await this.sessionsService.revokeAllByUser(userId);
     }
 
+    const previousRoleName = user.role.name;
     await this.userRepository.update(userId, { role: newRole });
+
+    if (actingUser) {
+      await this.auditService.log({
+        action: AuditAction.UPDATE,
+        entityName: 'User',
+        entityId: userId,
+        userId: actingUser.userId,
+        previousData: { role: previousRoleName },
+        newData: { role: newRole.name },
+        ipAddress: requestContext?.ipAddress ?? null,
+        userAgent: requestContext?.userAgent ?? null,
+      });
+    }
+
     return this.findOne(userId);
+  }
+
+  async changeStatus(
+    userId: string,
+    newStatus: UserStatus,
+    actingUser: RequestUser,
+    requestContext?: RequestContext,
+  ): Promise<User> {
+    const user = await this.userRepository.findOne({
+      where: { id: userId },
+      relations: { role: true },
+    });
+    if (!user) {
+      throw new NotFoundException(`User with id "${userId}" not found`);
+    }
+
+    if (actingUser.userId === userId) {
+      throw new ForbiddenException(
+        'Un admin no puede cambiar su propio estado',
+      );
+    }
+
+    if (user.status === newStatus) {
+      throw new ConflictException(`El usuario ya tiene el estado ${newStatus}`);
+    }
+
+    if (user.role.name === RoleName.ADMIN && newStatus !== UserStatus.ACTIVE) {
+      const activeAdminsCount = await this.userRepository
+        .createQueryBuilder('user')
+        .innerJoin('user.role', 'role')
+        .where('role.name = :roleName', { roleName: RoleName.ADMIN })
+        .andWhere('user.deletedAt IS NULL')
+        .andWhere('user.status = :status', { status: UserStatus.ACTIVE })
+        .getCount();
+
+      if (activeAdminsCount <= 1) {
+        throw new ConflictException(
+          'No se puede desactivar al último admin activo del sistema',
+        );
+      }
+
+      await this.sessionsService.revokeAllByUser(userId);
+    }
+
+    const previousStatus = user.status;
+    await this.userRepository.update(userId, { status: newStatus });
+
+    await this.auditService.log({
+      action: AuditAction.UPDATE,
+      entityName: 'User',
+      entityId: userId,
+      userId: actingUser.userId,
+      previousData: { status: previousStatus },
+      newData: { status: newStatus },
+      ipAddress: requestContext?.ipAddress ?? null,
+      userAgent: requestContext?.userAgent ?? null,
+    });
+
+    return this.findOne(userId);
+  }
+
+  async recordLogin(userId: string): Promise<void> {
+    await this.userRepository.update(userId, { lastLoginAt: new Date() });
   }
 
   async promoteToClient(userId: string): Promise<User> {

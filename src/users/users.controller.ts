@@ -11,6 +11,7 @@ import {
   HttpStatus,
   Query,
   UseGuards,
+  Req,
 } from '@nestjs/common';
 import {
   ApiTags,
@@ -20,24 +21,34 @@ import {
   ApiParam,
   ApiQuery,
 } from '@nestjs/swagger';
+import { Request } from 'express';
 import { JwtAuthGuard } from '../auth/guards/jwt-auth.guard';
 import { RolesGuard } from '../common/guards/roles.guard';
 import { Roles } from '../common/decorators/roles.decorator';
 import { Public } from '../common/decorators/public.decorator';
 import { CurrentUser } from '../common/decorators/current-user.decorator';
 import { RoleName } from '../roles/entities/roles.entity';
+import { UserStatus } from './entities/user.entity';
 import { UsersService } from './users.service';
 import { User } from './entities/user.entity';
 import { PaginatedResponse } from '../common/pagination';
 import { CreateUserDto } from './dto/create-user.dto';
 import { UpdateUserDto } from './dto/update-user.dto';
 import { AssignRoleDto } from './dto/assign-role.dto';
+import { ChangeStatusDto } from './dto/change-status.dto';
 import { FindUsersQueryDto } from './dto/find-users-query.dto';
 
 interface RequestUser {
   userId: string;
   email: string;
   role: RoleName;
+}
+
+function extractRequestContext(req: Request) {
+  return {
+    ipAddress: (req.headers['x-forwarded-for'] as string) ?? req.ip ?? null,
+    userAgent: req.headers['user-agent'] ?? null,
+  };
 }
 
 @ApiTags('Users')
@@ -66,7 +77,9 @@ export class UsersController {
   @Get()
   @ApiOperation({ summary: 'Listar usuarios con paginación y filtros' })
   @ApiQuery({ name: 'role', enum: RoleName, required: false })
+  @ApiQuery({ name: 'status', enum: UserStatus, required: false })
   @ApiQuery({ name: 'isActive', type: Boolean, required: false })
+  @ApiQuery({ name: 'search', type: String, required: false })
   @ApiResponse({ status: 200, description: 'Listado paginado' })
   @ApiResponse({ status: 401, description: 'No autenticado' })
   @ApiResponse({ status: 403, description: 'Sin permisos' })
@@ -76,6 +89,8 @@ export class UsersController {
     return this.usersService.findAll(query, {
       role: query.role,
       isActive: query.isActive,
+      status: query.status,
+      search: query.search,
     });
   }
 
@@ -127,8 +142,14 @@ export class UsersController {
     @Param('id', new ParseUUIDPipe()) id: string,
     @Body() dto: UpdateUserDto,
     @CurrentUser() requestUser: RequestUser,
+    @Req() req: Request,
   ): Promise<User> {
-    return this.usersService.update(id, dto, requestUser);
+    return this.usersService.update(
+      id,
+      dto,
+      requestUser,
+      extractRequestContext(req),
+    );
   }
 
   @Delete(':id')
@@ -162,7 +183,7 @@ export class UsersController {
   @ApiOperation({
     summary: 'Asignar un rol a un usuario (ADMIN)',
     description:
-      'Solo administradores pueden asignar roles. Un admin no puede reasignarse su propio rol. No se puede dejar el sistema sin al menos un admin activo.',
+      'Solo administradores pueden asignar roles. Un admin no puede reasignarse su propio rol. No se puede dejar el sistema sin al menos un admin activo. Si se degrada a un admin, se revocan todas sus sesiones activas.',
   })
   @ApiParam({ name: 'id', type: 'string', format: 'uuid' })
   @ApiResponse({
@@ -184,7 +205,51 @@ export class UsersController {
     @Param('id', new ParseUUIDPipe()) id: string,
     @Body() dto: AssignRoleDto,
     @CurrentUser() requestUser: RequestUser,
+    @Req() req: Request,
   ): Promise<User> {
-    return this.usersService.assignRole(id, dto.roleId, requestUser);
+    return this.usersService.assignRole(
+      id,
+      dto.roleId,
+      requestUser,
+      extractRequestContext(req),
+    );
+  }
+
+  @Patch(':id/status')
+  @Roles(RoleName.ADMIN)
+  @ApiOperation({
+    summary: 'Cambiar el estado de un usuario (ADMIN)',
+    description:
+      'Solo administradores pueden cambiar el estado de otros usuarios. Un admin no puede cambiar su propio estado. No se puede desactivar al último admin activo del sistema. Si se desactiva o suspende a un admin, se revocan todas sus sesiones activas.',
+  })
+  @ApiParam({ name: 'id', type: 'string', format: 'uuid' })
+  @ApiResponse({
+    status: 200,
+    description: 'Estado del usuario actualizado',
+    type: User,
+  })
+  @ApiResponse({ status: 401, description: 'No autenticado' })
+  @ApiResponse({
+    status: 403,
+    description: 'No es admin o intenta cambiar su propio estado',
+  })
+  @ApiResponse({ status: 404, description: 'Usuario no encontrado' })
+  @ApiResponse({
+    status: 409,
+    description:
+      'El usuario ya tiene ese estado / Es el último admin activo del sistema',
+  })
+  async changeStatus(
+    @Param('id', new ParseUUIDPipe()) id: string,
+    @Body() dto: ChangeStatusDto,
+    @CurrentUser() requestUser: RequestUser,
+    @Req() req: Request,
+  ): Promise<User> {
+    return this.usersService.changeStatus(
+      id,
+      dto.status,
+      requestUser,
+      extractRequestContext(req),
+    );
   }
 }
