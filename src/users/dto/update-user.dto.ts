@@ -1,5 +1,11 @@
 import { ApiProperty } from '@nestjs/swagger';
-import { IsEmail, IsNotEmpty, IsOptional, IsString } from 'class-validator';
+import {
+  IsEmail,
+  IsNotEmpty,
+  IsOptional,
+  IsString,
+  Matches,
+} from 'class-validator';
 
 export class UpdateUserDto {
   @ApiProperty({
@@ -20,4 +26,16 @@ export class UpdateUserDto {
   @IsEmail()
   @IsOptional()
   email?: string;
+
+  @ApiProperty({
+    description: 'Teléfono del usuario',
+    example: '+5491112345678',
+    required: false,
+  })
+  @IsString()
+  @IsOptional()
+  @Matches(/^[+]?[\d\s\-()]{6,20}$/, {
+    message: 'El teléfono no tiene un formato válido',
+  })
+  phone?: string;
 }

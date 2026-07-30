@@ -5,7 +5,7 @@ import { InjectRepository } from '@nestjs/typeorm';
 import { ExtractJwt, Strategy } from 'passport-jwt';
 import { Repository } from 'typeorm';
 import type { ApplicationConfiguration } from '../../config/configuration';
-import { User } from '../../users/entities/user.entity';
+import { User, UserStatus } from '../../users/entities/user.entity';
 import { JwtPayload } from '../interfaces/jwt-payload.interface';
 
 const INVALID_USER_MESSAGE = 'Usuario inválido.';
@@ -38,6 +38,10 @@ export class JwtStrategy extends PassportStrategy(Strategy) {
 
     if (!user || user.deletedAt) {
       throw new UnauthorizedException(INVALID_USER_MESSAGE);
+    }
+
+    if (user.status !== UserStatus.ACTIVE) {
+      throw new UnauthorizedException('Usuario inactivo o suspendido');
     }
 
     return {
