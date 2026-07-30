@@ -1,7 +1,7 @@
 import { createHash } from 'node:crypto';
 import { FindOperator, FindOneOptions, Repository } from 'typeorm';
 import { RoleName } from '../roles/entities/roles.entity';
-import { User } from '../users/entities/user.entity';
+import { User, UserStatus } from '../users/entities/user.entity';
 import { Session } from './entities/session.entity';
 import { SessionsService } from './sessions.service';
 
@@ -17,6 +17,13 @@ describe('SessionsService', () => {
     [FindOneOptions<Session>]
   >;
 
+  let createQueryBuilderMock: jest.Mock;
+  let updateMock: jest.Mock;
+  let setMock: jest.Mock;
+  let whereMock: jest.Mock;
+  let andWhereMock: jest.Mock;
+  let executeMock: jest.Mock;
+
   beforeEach(() => {
     createMock = jest.fn<Session, [Partial<Session>]>((input) =>
       Object.assign(new Session(), input),
@@ -28,10 +35,27 @@ describe('SessionsService', () => {
 
     findOneMock = jest.fn<Promise<Session | null>, [FindOneOptions<Session>]>();
 
+    updateMock = jest.fn().mockReturnThis();
+    setMock = jest.fn().mockReturnThis();
+    whereMock = jest.fn().mockReturnThis();
+    andWhereMock = jest.fn().mockReturnThis();
+    executeMock = jest.fn().mockResolvedValue({ affected: 1 });
+
+    const queryBuilder = {
+      update: updateMock,
+      set: setMock,
+      where: whereMock,
+      andWhere: andWhereMock,
+      execute: executeMock,
+    };
+
+    createQueryBuilderMock = jest.fn().mockReturnValue(queryBuilder);
+
     const sessionRepository = {
       create: createMock,
       save: saveMock,
       findOne: findOneMock,
+      createQueryBuilder: createQueryBuilderMock,
     } as unknown as Repository<Session>;
 
     sessionsService = new SessionsService(sessionRepository);
@@ -42,6 +66,9 @@ describe('SessionsService', () => {
     name: 'Usuario de prueba',
     email: 'usuario@aislafriopro.com',
     password: 'password-hash',
+    phone: null,
+    status: UserStatus.ACTIVE,
+    lastLoginAt: null,
     role: {
       id: '6d7e544a-22ce-41cb-a3cf-dae900834c31',
       name: RoleName.USER,
@@ -139,6 +166,21 @@ describe('SessionsService', () => {
 
     expect(expiresAtOperator.type).toBe('moreThan');
     expect(expiresAtOperator.value).toBeInstanceOf(Date);
+  });
+
+  it('debe revocar todas las sesiones no revocadas de un usuario', async () => {
+    const userId = '7be6ef16-1a45-4b82-950c-3411fef49b28';
+
+    await sessionsService.revokeAllByUser(userId);
+
+    expect(createQueryBuilderMock).toHaveBeenCalledTimes(1);
+    expect(updateMock).toHaveBeenCalledWith(Session);
+    expect(setMock).toHaveBeenCalledWith({ revoked: true });
+    expect(whereMock).toHaveBeenCalledWith('"userId" = :userId', {
+      userId,
+    });
+    expect(andWhereMock).toHaveBeenCalledWith('"revoked" = false');
+    expect(executeMock).toHaveBeenCalledTimes(1);
   });
 
   it('debe revocar una sesión existente', async () => {
