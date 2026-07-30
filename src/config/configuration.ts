@@ -25,12 +25,15 @@ export interface ApplicationConfiguration {
   jwt: {
     secret: string;
     expiresIn: string;
+    refreshSecret: string;
+    refreshExpiresInSeconds: number;
   };
 }
 
 const DEFAULT_PORT = 3000;
 const DEFAULT_DB_PORT = 5432;
 const DEFAULT_JWT_EXPIRES_IN = '15m';
+const DEFAULT_JWT_REFRESH_EXPIRES_IN_SECONDS = 60 * 60 * 24 * 7;
 const DEFAULT_CORS_ORIGINS = ['http://localhost:3000', 'http://localhost:5173'];
 const DEFAULT_SWAGGER_PATH = 'api/docs';
 
@@ -67,6 +70,28 @@ function readInteger(
   ) {
     throw new Error(
       `La variable de entorno ${key} debe ser un entero entre 1 y 65535.`,
+    );
+  }
+
+  return parsedValue;
+}
+
+function readPositiveInteger(
+  source: Record<string, unknown>,
+  key: string,
+  fallback: number,
+): number {
+  const rawValue = source[key];
+
+  if (rawValue === undefined || rawValue === null || rawValue === '') {
+    return fallback;
+  }
+
+  const parsedValue = Number(rawValue);
+
+  if (!Number.isInteger(parsedValue) || parsedValue <= 0) {
+    throw new Error(
+      `La variable de entorno ${key} debe ser un entero positivo.`,
     );
   }
 
@@ -225,6 +250,7 @@ export function validateEnvironment(
   readCorsOrigins(source, environment);
   readBoolean(source, 'SWAGGER_ENABLED', environment !== 'production');
   readSwaggerPath(source);
+
   readRequiredString(source, 'DB_HOST');
   readInteger(source, 'DB_PORT', DEFAULT_DB_PORT);
   readRequiredString(source, 'DB_USERNAME');
@@ -252,6 +278,20 @@ export function validateEnvironment(
       'La variable de entorno JWT_EXPIRES_IN no puede estar vacía.',
     );
   }
+
+  const jwtRefreshSecret = readRequiredString(source, 'JWT_REFRESH_SECRET');
+
+  if (jwtRefreshSecret.length < 32) {
+    throw new Error(
+      'La variable de entorno JWT_REFRESH_SECRET debe contener al menos 32 caracteres.',
+    );
+  }
+
+  readPositiveInteger(
+    source,
+    'JWT_REFRESH_EXPIRES_IN_SECONDS',
+    DEFAULT_JWT_REFRESH_EXPIRES_IN_SECONDS,
+  );
 
   return source;
 }
@@ -292,6 +332,12 @@ export default (): ApplicationConfiguration => {
         process.env.JWT_EXPIRES_IN.trim().length > 0
           ? process.env.JWT_EXPIRES_IN.trim()
           : DEFAULT_JWT_EXPIRES_IN,
+      refreshSecret: readRequiredString(process.env, 'JWT_REFRESH_SECRET'),
+      refreshExpiresInSeconds: readPositiveInteger(
+        process.env,
+        'JWT_REFRESH_EXPIRES_IN_SECONDS',
+        DEFAULT_JWT_REFRESH_EXPIRES_IN_SECONDS,
+      ),
     },
   };
 };
