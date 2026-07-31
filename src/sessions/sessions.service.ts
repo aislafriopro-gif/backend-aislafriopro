@@ -50,6 +50,16 @@ export class SessionsService {
     });
   }
 
+  async revokeAllByUser(userId: string): Promise<void> {
+    await this.sessionRepository
+      .createQueryBuilder()
+      .update(Session)
+      .set({ revoked: true })
+      .where('"userId" = :userId', { userId })
+      .andWhere('"revoked" = false')
+      .execute();
+  }
+
   async revokeSession(session: Session): Promise<Session> {
     session.revoked = true;
 

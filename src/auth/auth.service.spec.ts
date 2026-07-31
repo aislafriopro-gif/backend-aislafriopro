@@ -10,7 +10,7 @@ import {
   CreateSessionInput,
   SessionsService,
 } from '../sessions/sessions.service';
-import { User } from '../users/entities/user.entity';
+import { User, UserStatus } from '../users/entities/user.entity';
 import { AuthService } from './auth.service';
 import { JwtPayload } from './interfaces/jwt-payload.interface';
 import { RefreshJwtPayload } from './interfaces/refresh-jwt-payload.interface';
@@ -129,6 +129,9 @@ describe('AuthService', () => {
     name: 'Usuario de prueba',
     email: 'usuario@aislafriopro.com',
     password: passwordHash,
+    phone: null,
+    status: UserStatus.ACTIVE,
+    lastLoginAt: null,
     role: {
       id: '6d7e544a-22ce-41cb-a3cf-dae900834c31',
       name: RoleName.USER,
@@ -436,5 +439,33 @@ describe('AuthService', () => {
 
     expect(revokeSessionMock).not.toHaveBeenCalled();
     expect(createSessionMock).not.toHaveBeenCalled();
+  });
+  it('debe cerrar sesión revocando la sesión activa', async () => {
+    const session = buildSession();
+
+    findActiveByRefreshTokenMock.mockResolvedValue(session);
+    revokeSessionMock.mockResolvedValue(
+      Object.assign(session, { revoked: true }),
+    );
+
+    await authService.logout(RAW_REFRESH_TOKEN);
+
+    expect(findActiveByRefreshTokenMock).toHaveBeenCalledWith(
+      RAW_REFRESH_TOKEN,
+    );
+    expect(revokeSessionMock).toHaveBeenCalledWith(session);
+  });
+
+  it('debe permitir logout idempotente cuando no existe una sesión activa', async () => {
+    findActiveByRefreshTokenMock.mockResolvedValue(null);
+
+    await expect(
+      authService.logout(RAW_REFRESH_TOKEN),
+    ).resolves.toBeUndefined();
+
+    expect(findActiveByRefreshTokenMock).toHaveBeenCalledWith(
+      RAW_REFRESH_TOKEN,
+    );
+    expect(revokeSessionMock).not.toHaveBeenCalled();
   });
 });
