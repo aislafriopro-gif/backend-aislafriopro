@@ -90,6 +90,17 @@ export class AuthService {
     return this.issueTokenPair(session.user, metadata);
   }
 
+  async logout(refreshToken: string): Promise<void> {
+    const session =
+      await this.sessionsService.findActiveByRefreshToken(refreshToken);
+
+    if (!session) {
+      return;
+    }
+
+    await this.sessionsService.revokeSession(session);
+  }
+
   private async issueTokenPair(
     user: User,
     metadata: SessionMetadata,

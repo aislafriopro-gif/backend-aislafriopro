@@ -6,6 +6,7 @@ import { TypeOrmModule } from '@nestjs/typeorm';
 import type { ApplicationConfiguration } from '../config/configuration';
 import { SessionsModule } from '../sessions/sessions.module';
 import { User } from '../users/entities/user.entity';
+import { AuthController } from './auth.controller';
 import { AuthService } from './auth.service';
 import { JwtStrategy } from './strategies/jwt.strategy';
 
@@ -35,6 +36,7 @@ import { JwtStrategy } from './strategies/jwt.strategy';
       }),
     }),
   ],
+  controllers: [AuthController],
   providers: [AuthService, JwtStrategy],
   exports: [AuthService, PassportModule, JwtModule],
 })
