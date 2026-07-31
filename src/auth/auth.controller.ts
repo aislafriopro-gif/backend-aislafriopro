@@ -53,4 +53,20 @@ export class AuthController {
     };
     return this.authService.refresh(refreshTokenDto.refreshToken, metadata);
   }
+
+  @Public()
+  @Post('logout')
+  @HttpCode(HttpStatus.NO_CONTENT)
+  @ApiOperation({ summary: 'Cerrar sesión y revocar el refresh token' })
+  @ApiResponse({
+    status: HttpStatus.NO_CONTENT,
+    description: 'Sesión cerrada correctamente',
+  })
+  @ApiResponse({
+    status: HttpStatus.BAD_REQUEST,
+    description: 'Datos inválidos',
+  })
+  async logout(@Body() refreshTokenDto: RefreshTokenDto): Promise<void> {
+    await this.authService.logout(refreshTokenDto.refreshToken);
+  }
 }
