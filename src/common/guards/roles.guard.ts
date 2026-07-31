@@ -8,6 +8,12 @@ import { Reflector } from '@nestjs/core';
 import { ROLES_KEY } from '../decorators/roles.decorator';
 import { RoleName } from '../../roles/entities/roles.entity';
 
+interface AuthenticatedRequest {
+  user?: {
+    role: RoleName;
+  };
+}
+
 @Injectable()
 export class RolesGuard implements CanActivate {
   constructor(private reflector: Reflector) {}
@@ -20,10 +26,10 @@ export class RolesGuard implements CanActivate {
 
     if (!requiredRoles?.length) return true;
 
-    const { user } = context.switchToHttp().getRequest();
+    const { user } = context.switchToHttp().getRequest<AuthenticatedRequest>();
     if (!user) throw new ForbiddenException('No autenticado');
 
-    if (!user || !requiredRoles.includes(user.role)) {
+    if (!requiredRoles.includes(user.role)) {
       throw new ForbiddenException(
         'No tenés permisos para acceder a este recurso',
       );
