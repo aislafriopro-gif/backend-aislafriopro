@@ -296,7 +296,7 @@ export class UsersService {
         );
       }
 
-      await this.sessionsService.revokeAllByUser(userId);
+      // await this.sessionsService.revokeAllByUser(userId);
     }
 
     const previousRoleName = user.role.name;
@@ -357,7 +357,7 @@ export class UsersService {
         );
       }
 
-      await this.sessionsService.revokeAllByUser(userId);
+      // await this.sessionsService.revokeAllByUser(userId);
     }
 
     const previousStatus = user.status;
