@@ -17,14 +17,12 @@ import {
   ApiTags,
   ApiOperation,
   ApiResponse,
-  ApiBearerAuth,
   ApiParam,
   ApiQuery,
 } from '@nestjs/swagger';
 import { Request } from 'express';
 import { JwtAuthGuard } from '../auth/guards/jwt-auth.guard';
-import { RolesGuard } from '../common/guards/roles.guard';
-import { Roles } from '../common/decorators/roles.decorator';
+import { Auth } from '../common/decorators/auth.decorator';
 import { Public } from '../common/decorators/public.decorator';
 import { CurrentUser } from '../common/decorators/current-user.decorator';
 import { RoleName } from '../roles/entities/roles.entity';
@@ -52,8 +50,7 @@ function extractRequestContext(req: Request) {
 }
 
 @ApiTags('Users')
-@ApiBearerAuth()
-@UseGuards(JwtAuthGuard, RolesGuard)
+@UseGuards(JwtAuthGuard)
 @Controller('users')
 export class UsersController {
   constructor(private readonly usersService: UsersService) {}
@@ -103,13 +100,11 @@ export class UsersController {
   }
 
   @Get('deleted')
-  @Roles(RoleName.ADMIN)
+  @Auth(RoleName.ADMIN)
   @ApiOperation({
     summary: 'Listar todos los usuarios (incluye soft-deleted) (ADMIN)',
   })
   @ApiResponse({ status: 200, description: 'Listado paginado' })
-  @ApiResponse({ status: 401, description: 'No autenticado' })
-  @ApiResponse({ status: 403, description: 'Sin permisos' })
   async findAllWithDeleted(
     @Query() query: FindUsersQueryDto,
   ): Promise<PaginatedResponse<User>> {
@@ -117,12 +112,10 @@ export class UsersController {
   }
 
   @Get(':id')
-  @Roles(RoleName.ADMIN)
+  @Auth(RoleName.ADMIN)
   @ApiOperation({ summary: 'Obtener un usuario por ID (ADMIN)' })
   @ApiParam({ name: 'id', type: 'string', format: 'uuid' })
   @ApiResponse({ status: 200, description: 'Usuario encontrado', type: User })
-  @ApiResponse({ status: 401, description: 'No autenticado' })
-  @ApiResponse({ status: 403, description: 'Sin permisos' })
   @ApiResponse({ status: 404, description: 'Usuario no encontrado' })
   async findOne(@Param('id', new ParseUUIDPipe()) id: string): Promise<User> {
     return this.usersService.findOne(id);
@@ -153,25 +146,21 @@ export class UsersController {
   }
 
   @Delete(':id')
-  @Roles(RoleName.ADMIN)
+  @Auth(RoleName.ADMIN)
   @HttpCode(HttpStatus.NO_CONTENT)
   @ApiOperation({ summary: 'Soft delete de un usuario (ADMIN)' })
   @ApiParam({ name: 'id', type: 'string', format: 'uuid' })
   @ApiResponse({ status: 204, description: 'Usuario eliminado (soft delete)' })
-  @ApiResponse({ status: 401, description: 'No autenticado' })
-  @ApiResponse({ status: 403, description: 'Sin permisos' })
   @ApiResponse({ status: 404, description: 'Usuario no encontrado' })
   async remove(@Param('id', new ParseUUIDPipe()) id: string): Promise<void> {
     await this.usersService.remove(id);
   }
 
   @Patch(':id/restore')
-  @Roles(RoleName.ADMIN)
+  @Auth(RoleName.ADMIN)
   @ApiOperation({ summary: 'Restaurar un usuario soft-deleted (ADMIN)' })
   @ApiParam({ name: 'id', type: 'string', format: 'uuid' })
   @ApiResponse({ status: 200, description: 'Usuario restaurado', type: User })
-  @ApiResponse({ status: 401, description: 'No autenticado' })
-  @ApiResponse({ status: 403, description: 'Sin permisos' })
   @ApiResponse({ status: 404, description: 'Usuario no encontrado' })
   @ApiResponse({ status: 409, description: 'El usuario no está eliminado' })
   async restore(@Param('id', new ParseUUIDPipe()) id: string): Promise<User> {
@@ -179,7 +168,7 @@ export class UsersController {
   }
 
   @Patch(':id/role')
-  @Roles(RoleName.ADMIN)
+  @Auth(RoleName.ADMIN)
   @ApiOperation({
     summary: 'Asignar un rol a un usuario (ADMIN)',
     description:
@@ -191,7 +180,6 @@ export class UsersController {
     description: 'Usuario con rol actualizado',
     type: User,
   })
-  @ApiResponse({ status: 401, description: 'No autenticado' })
   @ApiResponse({
     status: 403,
     description: 'No es admin o intenta reasignarse su propio rol',
@@ -216,7 +204,7 @@ export class UsersController {
   }
 
   @Patch(':id/status')
-  @Roles(RoleName.ADMIN)
+  @Auth(RoleName.ADMIN)
   @ApiOperation({
     summary: 'Cambiar el estado de un usuario (ADMIN)',
     description:
@@ -228,7 +216,6 @@ export class UsersController {
     description: 'Estado del usuario actualizado',
     type: User,
   })
-  @ApiResponse({ status: 401, description: 'No autenticado' })
   @ApiResponse({
     status: 403,
     description: 'No es admin o intenta cambiar su propio estado',
