@@ -70,9 +70,9 @@ export class UsersController {
     return this.usersService.create(dto);
   }
 
-  @Public()
   @Get()
-  @ApiOperation({ summary: 'Listar usuarios con paginación y filtros' })
+  @Auth(RoleName.ADMIN)
+  @ApiOperation({ summary: 'Listar usuarios con paginación y filtros (ADMIN)' })
   @ApiQuery({ name: 'role', enum: RoleName, required: false })
   @ApiQuery({ name: 'status', enum: UserStatus, required: false })
   @ApiQuery({ name: 'isActive', type: Boolean, required: false })
@@ -85,30 +85,20 @@ export class UsersController {
   ): Promise<PaginatedResponse<User>> {
     return this.usersService.findAll(query, {
       role: query.role,
-      isActive: query.isActive,
+      isActive: query.includeDeleted,
       status: query.status,
       search: query.search,
     });
   }
 
   @Get('me')
+  @Auth()
   @ApiOperation({ summary: 'Obtener el perfil del usuario autenticado' })
   @ApiResponse({ status: 200, description: 'Perfil del usuario', type: User })
   @ApiResponse({ status: 401, description: 'No autenticado' })
   async findMe(@CurrentUser() requestUser: RequestUser): Promise<User> {
+    console.log('ghola');
     return this.usersService.findMe(requestUser.userId);
-  }
-
-  @Get('deleted')
-  @Auth(RoleName.ADMIN)
-  @ApiOperation({
-    summary: 'Listar todos los usuarios (incluye soft-deleted) (ADMIN)',
-  })
-  @ApiResponse({ status: 200, description: 'Listado paginado' })
-  async findAllWithDeleted(
-    @Query() query: FindUsersQueryDto,
-  ): Promise<PaginatedResponse<User>> {
-    return this.usersService.findAllWithDeleted(query);
   }
 
   @Get(':id')
