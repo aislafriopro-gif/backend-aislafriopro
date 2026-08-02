@@ -235,25 +235,6 @@ export class UsersService {
     return this.findOne(id);
   }
 
-  async findAllWithDeleted(
-    pagination: PaginationParamsDto,
-  ): Promise<PaginatedResponse<User>> {
-    const [data, total] = await this.userRepository.findAndCount({
-      withDeleted: true,
-      relations: { role: true },
-      order: { createdAt: 'DESC' },
-      skip: pagination.offset,
-      take: pagination.limit,
-      select: USER_PUBLIC_FIELDS,
-    });
-    return buildPaginatedResponse(
-      data,
-      total,
-      pagination.page,
-      pagination.limit,
-    );
-  }
-
   async assignRole(
     userId: string,
     roleId: string,

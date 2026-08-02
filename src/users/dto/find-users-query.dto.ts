@@ -25,15 +25,14 @@ export class FindUsersQueryDto extends PaginationParamsDto {
   status?: UserStatus;
 
   @ApiProperty({
-    description:
-      'Filtrar por estado activo/inactivo (true = activo, false = soft-deleted)',
+    description: 'Incluir usuarios eliminados en la respuesta (default: false)',
     example: true,
     required: false,
   })
   @Transform(({ value }) => value === 'true')
   @IsBoolean()
   @IsOptional()
-  isActive?: boolean;
+  includeDeleted?: boolean;
 
   @ApiProperty({
     description:
