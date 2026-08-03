@@ -1,29 +1,37 @@
-import { Entity, Column, PrimaryGeneratedColumn, ManyToOne, CreateDateColumn } from 'typeorm';
+import {
+  Entity,
+  Column,
+  PrimaryGeneratedColumn,
+  ManyToOne,
+  JoinColumn,
+  CreateDateColumn,
+} from 'typeorm';
 import { User } from '../../users/entities/user.entity';
 
 @Entity('sessions')
 export class Session {
-    @PrimaryGeneratedColumn('uuid')
-    id!: string;
+  @PrimaryGeneratedColumn('uuid')
+  id!: string;
 
-    @ManyToOne(() => User, (user) => user.sessions, { onDelete: 'CASCADE' })
-    user!: User;
+  @ManyToOne(() => User, (user) => user.sessions, { onDelete: 'CASCADE' })
+  @JoinColumn({ name: 'userId' })
+  user!: User;
 
-    @Column()
-    refreshToken!: string;
+  @Column({ type: 'varchar' })
+  refreshToken!: string;
 
-    @CreateDateColumn()
-    createdAt!: Date;
+  @CreateDateColumn()
+  createdAt!: Date;
 
-    @Column()
-    expiresAt!: Date;
+  @Column({ type: 'timestamp' })
+  expiresAt!: Date;
 
-    @Column()
-    ipAddress!: string;
+  @Column({ type: 'varchar' })
+  ipAddress!: string;
 
-    @Column()
-    userAgent!: string;
+  @Column({ type: 'varchar' })
+  userAgent!: string;
 
-    @Column({ default: false })
-    revoked!: boolean;
+  @Column({ type: 'boolean', default: false })
+  revoked!: boolean;
 }

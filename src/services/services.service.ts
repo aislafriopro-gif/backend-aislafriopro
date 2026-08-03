@@ -1,12 +1,19 @@
-import { Injectable, NotFoundException, ConflictException } from '@nestjs/common';
+import {
+  Injectable,
+  NotFoundException,
+  ConflictException,
+} from '@nestjs/common';
 import { InjectRepository } from '@nestjs/typeorm';
-import { Repository } from 'typeorm';
+import { ILike, IsNull, Repository } from 'typeorm';
 import { Service } from './entities/service.entity';
 import {
   PaginationParamsDto,
   PaginatedResponse,
   buildPaginatedResponse,
 } from '../common/pagination';
+import { CreateServiceDto } from './dto/create-service.dto';
+import { UpdateServiceDto } from './dto/update-service.dto';
+import { FindServicesQueryDto } from './dto/find-services-query.dto';
 
 @Injectable()
 export class ServicesService {
@@ -15,8 +22,79 @@ export class ServicesService {
     private readonly serviceRepository: Repository<Service>,
   ) {}
 
+  async create(createServiceDto: CreateServiceDto): Promise<Service> {
+    const service = this.serviceRepository.create(createServiceDto);
+    return this.serviceRepository.save(service);
+  }
+
+  async findAll(
+    query: FindServicesQueryDto,
+  ): Promise<PaginatedResponse<Service>> {
+    const where: any = {
+      deletedAt: IsNull(),
+      isActive: true,
+    };
+
+    if (query.search) {
+      where.name = ILike(`%${query.search}%`);
+    }
+
+    const [data, total] = await this.serviceRepository.findAndCount({
+      where,
+      order: { displayOrder: 'ASC', createdAt: 'DESC' },
+      skip: query.offset,
+      take: query.limit,
+    });
+    return buildPaginatedResponse(data, total, query.page, query.limit);
+  }
+
+  async findAllAdmin(
+    query: FindServicesQueryDto,
+  ): Promise<PaginatedResponse<Service>> {
+    const where: any = {};
+
+    if (query.search) {
+      where.name = ILike(`%${query.search}%`);
+    }
+
+    const [data, total] = await this.serviceRepository.findAndCount({
+      where,
+      withDeleted: true,
+      order: { createdAt: 'DESC' },
+      skip: query.offset,
+      take: query.limit,
+    });
+    return buildPaginatedResponse(data, total, query.page, query.limit);
+  }
+
+  async findOne(id: string): Promise<Service> {
+    const service = await this.serviceRepository.findOne({
+      where: { id, isActive: true, deletedAt: IsNull() },
+    });
+    if (!service) {
+      throw new NotFoundException(`Service with id "${id}" not found`);
+    }
+    return service;
+  }
+
+  async update(
+    id: string,
+    updateServiceDto: UpdateServiceDto,
+  ): Promise<Service> {
+    const service = await this.serviceRepository.findOne({
+      where: { id, deletedAt: IsNull() },
+    });
+    if (!service) {
+      throw new NotFoundException(`Service with id "${id}" not found`);
+    }
+    await this.serviceRepository.update(id, updateServiceDto);
+    return this.serviceRepository.findOneByOrFail({ id });
+  }
+
   async remove(id: string): Promise<void> {
-    const service = await this.serviceRepository.findOne({ where: { id } });
+    const service = await this.serviceRepository.findOne({
+      where: { id, deletedAt: IsNull() },
+    });
     if (!service) {
       throw new NotFoundException(`Service with id "${id}" not found`);
     }
@@ -36,17 +114,5 @@ export class ServicesService {
     }
     await this.serviceRepository.restore(id);
     return this.serviceRepository.findOneByOrFail({ id });
-  }
-
-  async findAllWithDeleted(
-    pagination: PaginationParamsDto,
-  ): Promise<PaginatedResponse<Service>> {
-    const [data, total] = await this.serviceRepository.findAndCount({
-      withDeleted: true,
-      order: { createdAt: 'DESC' },
-      skip: pagination.offset,
-      take: pagination.limit,
-    });
-    return buildPaginatedResponse(data, total, pagination.page, pagination.limit);
   }
 }
