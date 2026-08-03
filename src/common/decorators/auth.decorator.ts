@@ -13,7 +13,7 @@ export function Auth(...roles: RoleName[]) {
   return applyDecorators(
     Roles(...roles),
     UseGuards(JwtAuthGuard, RolesGuard),
-    ApiBearerAuth(),
+    ApiBearerAuth('access-token'),
     ApiUnauthorizedResponse({ description: 'Token inválido o ausente' }),
     ApiForbiddenResponse({ description: 'No tenés el rol requerido' }),
   );

@@ -29,10 +29,10 @@ export class User {
   @PrimaryGeneratedColumn('uuid')
   id!: string;
 
-  @Column({ nullable: false })
+  @Column({ type: 'varchar', nullable: false })
   name!: string;
 
-  @Column()
+  @Column({ type: 'varchar' })
   email!: string;
 
   @Column({ type: 'varchar', nullable: false })
