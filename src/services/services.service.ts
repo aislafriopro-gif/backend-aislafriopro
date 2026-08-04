@@ -23,6 +23,7 @@ export class ServicesService {
   ) {}
 
   async create(createServiceDto: CreateServiceDto): Promise<Service> {
+    await this.ensureSlugAvailable(createServiceDto.slug);
     const service = this.serviceRepository.create(createServiceDto);
     return this.serviceRepository.save(service);
   }
@@ -87,6 +88,9 @@ export class ServicesService {
     if (!service) {
       throw new NotFoundException(`Service with id "${id}" not found`);
     }
+    if (updateServiceDto.slug !== undefined) {
+      await this.ensureSlugAvailable(updateServiceDto.slug, id);
+    }
     await this.serviceRepository.update(id, updateServiceDto);
     return this.serviceRepository.findOneByOrFail({ id });
   }
@@ -106,13 +110,29 @@ export class ServicesService {
       where: { id },
       withDeleted: true,
     });
+
     if (!service) {
       throw new NotFoundException(`Service with id "${id}" not found`);
     }
     if (service.deletedAt === null || service.deletedAt === undefined) {
       throw new ConflictException(`Service with id "${id}" is not deleted`);
     }
-    await this.serviceRepository.restore(id);
-    return this.serviceRepository.findOneByOrFail({ id });
+
+    await this.ensureSlugAvailable(service.slug, id);
+    service.deletedAt = null;
+    if (!service.isActive) {
+      service.isActive = true;
+    }
+    return this.serviceRepository.save(service);
+  }
+
+  private async ensureSlugAvailable(slug: string, excludedId?: string): Promise<void> {
+    const existingService = await this.serviceRepository.findOne({
+      where: { slug, isActive: true, deletedAt: IsNull() },
+    });
+
+    if (existingService && existingService.id !== excludedId) {
+      throw new ConflictException(`Service slug "${slug}" is already in use`);
+    }
   }
 }

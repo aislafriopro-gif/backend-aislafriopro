@@ -18,7 +18,6 @@ type SaveService = Repository<Service>['save'];
 type FindAndCountService = Repository<Service>['findAndCount'];
 type UpdateService = Repository<Service>['update'];
 type SoftDeleteService = Repository<Service>['softDelete'];
-type RestoreService = Repository<Service>['restore'];
 
 const buildService = (overrides: Partial<Service> = {}): Service => ({
   id: 'a1b2c3d4-e5f6-7890-abcd-ef1234567890',
@@ -101,10 +100,6 @@ describe('ServicesService', () => {
     ReturnType<SoftDeleteService>,
     Parameters<SoftDeleteService>
   >;
-  let restoreServiceMock: jest.Mock<
-    ReturnType<RestoreService>,
-    Parameters<RestoreService>
-  >;
 
   beforeEach(() => {
     jest.resetAllMocks();
@@ -144,9 +139,6 @@ describe('ServicesService', () => {
     softDeleteServiceMock = jest
       .fn<ReturnType<SoftDeleteService>, Parameters<SoftDeleteService>>()
       .mockResolvedValue({ generatedMaps: [], raw: [], affected: 1 });
-    restoreServiceMock = jest
-      .fn<ReturnType<RestoreService>, Parameters<RestoreService>>()
-      .mockResolvedValue({ generatedMaps: [], raw: [], affected: 1 });
 
     const serviceRepository = {
       findOne: findOneServiceMock,
@@ -157,7 +149,6 @@ describe('ServicesService', () => {
       findAndCount: findAndCountServiceMock,
       update: updateServiceMock,
       softDelete: softDeleteServiceMock,
-      restore: restoreServiceMock,
     } as unknown as Repository<Service>;
 
     servicesService = new ServicesService(serviceRepository);
@@ -182,6 +173,21 @@ describe('ServicesService', () => {
       expect(result.name).toBe(dto.name);
       expect(result.slug).toBe(dto.slug);
       expect(result.description).toBe(dto.description);
+    });
+
+    it('debe lanzar ConflictException si el slug ya esta en uso', async () => {
+      const dto: CreateServiceDto = {
+        name: 'Otro servicio',
+        slug: 'aislacion-termica',
+        description: 'Otro servicio con el mismo slug',
+      };
+      findOneServiceMock.mockResolvedValue(buildService({ slug: dto.slug }));
+
+      await expect(servicesService.create(dto)).rejects.toThrow(
+        `Service slug "${dto.slug}" is already in use`,
+      );
+      expect(createServiceMock).not.toHaveBeenCalled();
+      expect(saveServiceMock).not.toHaveBeenCalled();
     });
   });
 
@@ -353,6 +359,23 @@ describe('ServicesService', () => {
       ).rejects.toThrow(NotFoundException);
       expect(updateServiceMock).not.toHaveBeenCalled();
     });
+
+    it('debe lanzar ConflictException si el nuevo slug ya esta en uso', async () => {
+      const service = buildService({ id: 'service-to-update' });
+      const dto: UpdateServiceDto = { slug: 'slug-en-uso' };
+      const conflictingService = buildService({
+        id: 'other-service',
+        slug: dto.slug,
+      });
+      findOneServiceMock
+        .mockResolvedValueOnce(service)
+        .mockResolvedValueOnce(conflictingService);
+
+      await expect(servicesService.update(service.id, dto)).rejects.toThrow(
+        `Service slug "${dto.slug}" is already in use`,
+      );
+      expect(updateServiceMock).not.toHaveBeenCalled();
+    });
   });
 
   describe('remove', () => {
@@ -375,17 +398,21 @@ describe('ServicesService', () => {
 
   describe('restore', () => {
     it('debe restaurar un servicio eliminado', async () => {
-      const service = buildService({ deletedAt: new Date() });
-      const restored = buildService({ id: service.id, deletedAt: null });
+      const deletedAt = new Date();
+      const service = buildService({ deletedAt, isActive: false });
+      const restored = buildService({
+        id: service.id,
+        deletedAt: null,
+        isActive: true,
+      });
       findOneServiceMock.mockResolvedValueOnce(service);
-      findOneByOrFailServiceMock.mockResolvedValue(restored);
+      saveServiceMock.mockResolvedValue(restored);
 
       const result = await servicesService.restore(service.id);
 
-      expect(restoreServiceMock).toHaveBeenCalledWith(service.id);
-      expect(findOneByOrFailServiceMock).toHaveBeenCalledWith({
-        id: service.id,
-      });
+      expect(service.deletedAt).toBeNull();
+      expect(service.isActive).toBe(true);
+      expect(saveServiceMock).toHaveBeenCalledWith(service);
       expect(result).toBe(restored);
     });
 
@@ -407,6 +434,22 @@ describe('ServicesService', () => {
       await expect(servicesService.restore(service.id)).rejects.toThrow(
         `Service with id "${service.id}" is not deleted`,
       );
+    });
+
+    it('debe lanzar ConflictException si el slug ya esta en uso al restaurar', async () => {
+      const service = buildService({ id: 'deleted-service', deletedAt: new Date() });
+      const conflictingService = buildService({
+        id: 'active-service',
+        slug: service.slug,
+      });
+      findOneServiceMock
+        .mockResolvedValueOnce(service)
+        .mockResolvedValueOnce(conflictingService);
+
+      await expect(servicesService.restore(service.id)).rejects.toThrow(
+        `Service slug "${service.slug}" is already in use`,
+      );
+      expect(saveServiceMock).not.toHaveBeenCalled();
     });
   });
 });
