@@ -6,7 +6,6 @@ import {
   IsOptional,
   IsString,
   IsUrl,
-  Matches,
   MaxLength,
   Min,
 } from 'class-validator';
@@ -21,20 +20,6 @@ export class CreateServiceDto {
   @IsNotEmpty({ message: 'El nombre es obligatorio.' })
   @MaxLength(150, { message: 'El nombre no puede superar los 150 caracteres.' })
   name!: string;
-
-  @ApiProperty({
-    description: 'Slug único para URLs amigables (kebab-case)',
-    example: 'instalacion-aislacion-termica',
-    maxLength: 160,
-  })
-  @IsString({ message: 'El slug debe ser una cadena de texto.' })
-  @IsNotEmpty({ message: 'El slug es obligatorio.' })
-  @MaxLength(160, { message: 'El slug no puede superar los 160 caracteres.' })
-  @Matches(/^[a-z0-9]+(?:-[a-z0-9]+)*$/, {
-    message:
-      'El slug solo puede contener letras minúsculas, números y guiones, sin espacios ni caracteres especiales.',
-  })
-  slug!: string;
 
   @ApiProperty({
     description: 'Descripción detallada del servicio',
