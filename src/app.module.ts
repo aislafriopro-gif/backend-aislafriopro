@@ -12,6 +12,7 @@ import { UsersModule } from './users/users.module';
 import { RolesModule } from './roles/roles.module';
 import { ServicesModule } from './services/services.module';
 import { HealthModule } from './health/health.module';
+import { FaqsModule } from './faqs/faqs.module';
 
 @Module({
   imports: [
@@ -51,6 +52,7 @@ import { HealthModule } from './health/health.module';
     RolesModule,
     ServicesModule,
     HealthModule,
+    FaqsModule,
   ],
   controllers: [AppController],
   providers: [AppService],
