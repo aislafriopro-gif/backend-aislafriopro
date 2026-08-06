@@ -45,6 +45,7 @@ describe('SiteSettingsService', () => {
     create: jest.Mock<SiteSetting, [Partial<SiteSetting>]>;
     save: jest.Mock<Promise<SiteSetting>, [SiteSetting]>;
     findAndCount: jest.Mock<Promise<[SiteSetting[], number]>, [unknown]>;
+    find: jest.Mock<Promise<Pick<SiteSetting, 'key' | 'value'>[]>, [unknown]>;
     findOne: jest.Mock<Promise<SiteSetting | null>, [unknown]>;
     update: jest.Mock<Promise<unknown>, [string, UpdateSiteSettingDto]>;
     findOneByOrFail: jest.Mock<Promise<SiteSetting>, [Partial<SiteSetting>]>;
@@ -68,6 +69,9 @@ describe('SiteSettingsService', () => {
       findAndCount: jest
         .fn<Promise<[SiteSetting[], number]>, [unknown]>()
         .mockResolvedValue([[], 0]),
+      find: jest
+        .fn<Promise<Pick<SiteSetting, 'key' | 'value'>[]>, [unknown]>()
+        .mockResolvedValue([]),
       findOne: jest.fn<Promise<SiteSetting | null>, [unknown]>(),
       update: jest
         .fn<Promise<unknown>, [string, UpdateSiteSettingDto]>()
@@ -118,6 +122,45 @@ describe('SiteSettingsService', () => {
       ).rejects.toThrow(ConflictException);
       expect(repository.create).not.toHaveBeenCalled();
       expect(repository.save).not.toHaveBeenCalled();
+    });
+  });
+
+  describe('findPublicSettings', () => {
+    it('debe retornar configuraciones publicas indexadas por clave', async () => {
+      repository.find.mockResolvedValue([
+        { key: 'contact.whatsapp', value: '+5491112345678' },
+        { key: 'site.email', value: 'info@aislafriopro.com' },
+      ]);
+
+      const result = await siteSettingsService.findPublicSettings();
+
+      expect(repository.find).toHaveBeenCalledWith({
+        select: {
+          key: true,
+          value: true,
+        },
+        order: { key: 'ASC' },
+      });
+      expect(result).toEqual({
+        settings: {
+          'contact.whatsapp': '+5491112345678',
+          'site.email': 'info@aislafriopro.com',
+        },
+      });
+    });
+
+    it('debe soportar valores nulos', async () => {
+      repository.find.mockResolvedValue([
+        { key: 'site.description', value: null },
+      ]);
+
+      const result = await siteSettingsService.findPublicSettings();
+
+      expect(result).toEqual({
+        settings: {
+          'site.description': null,
+        },
+      });
     });
   });
 

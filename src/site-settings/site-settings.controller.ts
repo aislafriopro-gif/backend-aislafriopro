@@ -20,6 +20,8 @@ import { FindSiteSettingsQueryDto } from './dto/find-site-settings-query.dto';
 import { UpdateSiteSettingDto } from './dto/update-site-setting.dto';
 import { SiteSetting } from './entities/site-setting.entity';
 import { SiteSettingsService } from './site-settings.service';
+import { Public } from '../common/decorators/public.decorator';
+import { PublicSiteSettingsResponseDto } from './dto/public-site-settings-response.dto';
 
 @ApiTags('Site Settings')
 @Controller('site-settings')
@@ -47,6 +49,18 @@ export class SiteSettingsController {
     @Query() query: FindSiteSettingsQueryDto,
   ): Promise<PaginatedResponse<SiteSetting>> {
     return this.siteSettingsService.findAll(query);
+  }
+
+  @Get('public')
+  @Public()
+  @ApiOperation({ summary: 'Obtener configuraciones publicas del sitio' })
+  @ApiResponse({
+    status: 200,
+    description: 'Configuraciones publicas necesarias para el frontend',
+    type: PublicSiteSettingsResponseDto,
+  })
+  async findPublicSettings(): Promise<PublicSiteSettingsResponseDto> {
+    return this.siteSettingsService.findPublicSettings();
   }
 
   @Get(':id')

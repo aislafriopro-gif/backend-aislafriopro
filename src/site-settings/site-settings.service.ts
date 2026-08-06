@@ -13,6 +13,7 @@ import { CreateSiteSettingDto } from './dto/create-site-setting.dto';
 import { FindSiteSettingsQueryDto } from './dto/find-site-settings-query.dto';
 import { UpdateSiteSettingDto } from './dto/update-site-setting.dto';
 import { SiteSetting } from './entities/site-setting.entity';
+import { PublicSiteSettingsResponseDto } from './dto/public-site-settings-response.dto';
 
 @Injectable()
 export class SiteSettingsService {
@@ -46,6 +47,26 @@ export class SiteSettingsService {
     });
 
     return buildPaginatedResponse(data, total, query.page, query.limit);
+  }
+
+  async findPublicSettings(): Promise<PublicSiteSettingsResponseDto> {
+    const settings = await this.siteSettingRepository.find({
+      select: {
+        key: true,
+        value: true,
+      },
+      order: { key: 'ASC' },
+    });
+
+    return {
+      settings: settings.reduce<Record<string, string | null>>(
+        (accumulator, setting) => {
+          accumulator[setting.key] = setting.value;
+          return accumulator;
+        },
+        {},
+      ),
+    };
   }
 
   async findOne(id: string): Promise<SiteSetting> {

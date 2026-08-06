@@ -44,6 +44,9 @@ describe('SiteSettingsController', () => {
 
   let createMock: jest.MockedFunction<SiteSettingsService['create']>;
   let findAllMock: jest.MockedFunction<SiteSettingsService['findAll']>;
+  let findPublicSettingsMock: jest.MockedFunction<
+    SiteSettingsService['findPublicSettings']
+  >;
   let findOneMock: jest.MockedFunction<SiteSettingsService['findOne']>;
   let updateMock: jest.MockedFunction<SiteSettingsService['update']>;
   let removeMock: jest.MockedFunction<SiteSettingsService['remove']>;
@@ -51,6 +54,7 @@ describe('SiteSettingsController', () => {
   beforeEach(() => {
     createMock = jest.fn();
     findAllMock = jest.fn();
+    findPublicSettingsMock = jest.fn();
     findOneMock = jest.fn();
     updateMock = jest.fn();
     removeMock = jest.fn();
@@ -58,6 +62,7 @@ describe('SiteSettingsController', () => {
     const service = {
       create: createMock,
       findAll: findAllMock,
+      findPublicSettings: findPublicSettingsMock,
       findOne: findOneMock,
       update: updateMock,
       remove: removeMock,
@@ -97,6 +102,23 @@ describe('SiteSettingsController', () => {
 
       expect(result).toBe(paginated);
       expect(findAllMock).toHaveBeenCalledWith(query);
+    });
+  });
+
+  describe('findPublicSettings', () => {
+    it('debe delegar el endpoint publico al servicio', async () => {
+      const response = {
+        settings: {
+          'contact.whatsapp': '+5491112345678',
+        },
+      };
+
+      findPublicSettingsMock.mockResolvedValue(response);
+
+      const result = await controller.findPublicSettings();
+
+      expect(result).toBe(response);
+      expect(findPublicSettingsMock).toHaveBeenCalled();
     });
   });
 
