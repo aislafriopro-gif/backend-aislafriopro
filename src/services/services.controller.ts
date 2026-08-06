@@ -17,6 +17,7 @@ import { plainToInstance } from 'class-transformer';
 import { ApiTags, ApiOperation, ApiResponse, ApiParam } from '@nestjs/swagger';
 import { Auth } from '../common/decorators/auth.decorator';
 import { CurrentUser } from '../common/decorators/current-user.decorator';
+import { Public } from '../common/decorators/public.decorator';
 import { RoleName } from '../roles/entities/roles.entity';
 import { ServicesService, RequestContext } from './services.service';
 import { Service } from './entities/service.entity';
@@ -90,6 +91,23 @@ export class ServicesController {
         plainToInstance(ServiceResponseDto, service),
       ),
     };
+  }
+
+  @Get('by-slug/:slug')
+  @Public()
+  @ApiOperation({ summary: 'Obtener un servicio activo por slug' })
+  @ApiParam({ name: 'slug', type: 'string', description: 'Slug del servicio' })
+  @ApiResponse({
+    status: 200,
+    description: 'Detalle del servicio',
+    type: ServiceResponseDto,
+  })
+  @ApiResponse({ status: 404, description: 'Servicio no encontrado' })
+  async findBySlug(
+    @Param('slug') slug: string,
+  ): Promise<ServiceResponseDto> {
+    const service = await this.servicesService.findBySlug(slug);
+    return plainToInstance(ServiceResponseDto, service);
   }
 
   @Get(':id')
