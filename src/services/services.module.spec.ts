@@ -15,10 +15,7 @@ describe('ServicesModule', () => {
     ) as unknown[];
 
   const getProviders = (): unknown[] =>
-    Reflect.getMetadata(
-      MODULE_METADATA.PROVIDERS,
-      ServicesModule,
-    ) as unknown[];
+    Reflect.getMetadata(MODULE_METADATA.PROVIDERS, ServicesModule) as unknown[];
 
   const getExports = (): unknown[] =>
     Reflect.getMetadata(MODULE_METADATA.EXPORTS, ServicesModule) as unknown[];

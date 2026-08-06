@@ -1,4 +1,3 @@
-import { plainToInstance } from 'class-transformer';
 import { Service } from './entities/service.entity';
 import { ServicesController } from './services.controller';
 import { ServicesService } from './services.service';
@@ -6,6 +5,9 @@ import { CreateServiceDto } from './dto/create-service.dto';
 import { UpdateServiceDto } from './dto/update-service.dto';
 import { ServiceResponseDto } from './dto/service-response.dto';
 import { FindServicesQueryDto } from './dto/find-services-query.dto';
+import { ReorderServicesDto } from './dto/reorder-services.dto';
+import { RoleName } from '../roles/entities/roles.entity';
+import { Request } from 'express';
 
 const buildService = (overrides: Partial<Service> = {}): Service => ({
   id: 'a1b2c3d4-e5f6-7890-abcd-ef1234567890',
@@ -54,6 +56,9 @@ describe('ServicesController', () => {
   let updateMock: jest.MockedFunction<ServicesService['update']>;
   let removeMock: jest.MockedFunction<ServicesService['remove']>;
   let restoreMock: jest.MockedFunction<ServicesService['restore']>;
+  let publishMock: jest.MockedFunction<ServicesService['publish']>;
+  let unpublishMock: jest.MockedFunction<ServicesService['unpublish']>;
+  let reorderMock: jest.MockedFunction<ServicesService['reorder']>;
 
   beforeEach(() => {
     createMock = jest.fn();
@@ -63,6 +68,9 @@ describe('ServicesController', () => {
     updateMock = jest.fn();
     removeMock = jest.fn();
     restoreMock = jest.fn();
+    publishMock = jest.fn();
+    unpublishMock = jest.fn();
+    reorderMock = jest.fn();
 
     const servicesService = {
       create: createMock,
@@ -72,6 +80,9 @@ describe('ServicesController', () => {
       update: updateMock,
       remove: removeMock,
       restore: restoreMock,
+      publish: publishMock,
+      unpublish: unpublishMock,
+      reorder: reorderMock,
     } as unknown as ServicesService;
 
     servicesController = new ServicesController(servicesService);
@@ -81,10 +92,9 @@ describe('ServicesController', () => {
     it('debe crear un servicio y retornarlo', async () => {
       const dto: CreateServiceDto = {
         name: 'Nuevo servicio',
-        slug: 'nuevo-servicio',
         description: 'Descripcion',
       };
-      const created = buildService(dto);
+      const created = buildService({ ...dto, slug: 'nuevo-servicio' });
       createMock.mockResolvedValue(created);
 
       const result = await servicesController.create(dto);
@@ -106,7 +116,10 @@ describe('ServicesController', () => {
       expect(findAllMock).toHaveBeenCalledWith(query);
       expect(result.data).toHaveLength(1);
       expect(result.data[0]).toBeInstanceOf(ServiceResponseDto);
-      const json = JSON.parse(JSON.stringify(result.data[0]));
+      const json = JSON.parse(JSON.stringify(result.data[0])) as Record<
+        string,
+        unknown
+      >;
       expect(json).not.toHaveProperty('deletedAt');
       expect(json.id).toBe(service.id);
       expect(json.name).toBe(service.name);
@@ -115,9 +128,7 @@ describe('ServicesController', () => {
     it('debe retornar data vacia si el servicio no encontro resultados', async () => {
       findAllMock.mockResolvedValue(buildPaginatedResponse<Service>([], 0));
 
-      const result = await servicesController.findAll(
-        buildFindServicesQuery(),
-      );
+      const result = await servicesController.findAll(buildFindServicesQuery());
 
       expect(result.data).toEqual([]);
       expect(result.total).toBe(0);
@@ -157,7 +168,10 @@ describe('ServicesController', () => {
 
       expect(findOneMock).toHaveBeenCalledWith(service.id);
       expect(result).toBeInstanceOf(ServiceResponseDto);
-      const json = JSON.parse(JSON.stringify(result));
+      const json = JSON.parse(JSON.stringify(result)) as Record<
+        string,
+        unknown
+      >;
       expect(json).not.toHaveProperty('deletedAt');
     });
   });
@@ -194,6 +208,83 @@ describe('ServicesController', () => {
 
       expect(result).toBe(service);
       expect(restoreMock).toHaveBeenCalledWith(service.id);
+    });
+  });
+
+  describe('publish', () => {
+    it('debe publicar un servicio', async () => {
+      const service = buildService({ isActive: true });
+      const userId = 'user-uuid';
+      const requestUser = {
+        userId,
+        email: 'admin@test.com',
+        role: RoleName.ADMIN,
+      };
+      const mockRequest = {
+        headers: {
+          'x-forwarded-for': '192.168.1.1',
+          'user-agent': 'test-agent',
+        },
+        ip: '127.0.0.1',
+      } as unknown as Request;
+      publishMock.mockResolvedValue(service);
+
+      const result = await servicesController.publish(
+        service.id,
+        requestUser,
+        mockRequest,
+      );
+
+      expect(result).toBe(service);
+      expect(publishMock).toHaveBeenCalledWith(service.id, userId, {
+        ipAddress: '192.168.1.1',
+        userAgent: 'test-agent',
+      });
+    });
+  });
+
+  describe('unpublish', () => {
+    it('debe despublicar un servicio', async () => {
+      const service = buildService({ isActive: false });
+      const userId = 'user-uuid';
+      const requestUser = {
+        userId,
+        email: 'admin@test.com',
+        role: RoleName.ADMIN,
+      };
+      const mockRequest = {
+        headers: {
+          'user-agent': 'test-agent',
+        },
+        ip: '127.0.0.1',
+      } as unknown as Request;
+      unpublishMock.mockResolvedValue(service);
+
+      const result = await servicesController.unpublish(
+        service.id,
+        requestUser,
+        mockRequest,
+      );
+
+      expect(result).toBe(service);
+      expect(unpublishMock).toHaveBeenCalledWith(service.id, userId, {
+        ipAddress: '127.0.0.1',
+        userAgent: 'test-agent',
+      });
+    });
+  });
+
+  describe('reorder', () => {
+    it('debe reordenar servicios', async () => {
+      const dto: ReorderServicesDto = {
+        orderedIds: ['s-1', 's-2', 's-3'],
+      };
+      reorderMock.mockResolvedValue(undefined);
+
+      await expect(
+        servicesController.reorder(dto),
+      ).resolves.toBeUndefined();
+      expect(reorderMock).toHaveBeenCalledWith(dto.orderedIds);
     });
   });
 });

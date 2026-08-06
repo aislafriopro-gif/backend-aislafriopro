@@ -2,19 +2,19 @@ import { NotFoundException, ConflictException } from '@nestjs/common';
 import { Repository } from 'typeorm';
 import { Service } from './entities/service.entity';
 import { ServicesService } from './services.service';
+import { AuditService } from '../audit/audit.service';
+import { AuditAction } from '../audit/entities/audit-action.entity';
 import { CreateServiceDto } from './dto/create-service.dto';
 import { UpdateServiceDto } from './dto/update-service.dto';
 import { FindServicesQueryDto } from './dto/find-services-query.dto';
-import {
-  PaginationParamsDto,
-  PaginatedResponse,
-} from '../common/pagination';
+import { PaginatedResponse } from '../common/pagination';
 
 type FindOneService = Repository<Service>['findOne'];
 type FindOneByService = Repository<Service>['findOneBy'];
 type FindOneByOrFailService = Repository<Service>['findOneByOrFail'];
 type CreateService = Repository<Service>['create'];
 type SaveService = Repository<Service>['save'];
+type FindService = Repository<Service>['find'];
 type FindAndCountService = Repository<Service>['findAndCount'];
 type UpdateService = Repository<Service>['update'];
 type SoftDeleteService = Repository<Service>['softDelete'];
@@ -33,15 +33,6 @@ const buildService = (overrides: Partial<Service> = {}): Service => ({
   deletedAt: null,
   ...overrides,
 });
-
-const buildPagination = (
-  overrides: Partial<PaginationParamsDto> = {},
-): PaginationParamsDto => {
-  const dto = new PaginationParamsDto();
-  dto.page = 1;
-  dto.limit = 10;
-  return Object.assign(dto, overrides);
-};
 
 const buildFindServicesQuery = (
   overrides: Partial<FindServicesQueryDto> = {},
@@ -100,6 +91,9 @@ describe('ServicesService', () => {
     ReturnType<SoftDeleteService>,
     Parameters<SoftDeleteService>
   >;
+  let findMock: jest.Mock<ReturnType<FindService>, Parameters<FindService>>;
+  let managerUpdateMock: jest.Mock;
+  let logMock: jest.Mock;
 
   beforeEach(() => {
     jest.resetAllMocks();
@@ -120,15 +114,13 @@ describe('ServicesService', () => {
       ReturnType<CreateService>,
       Parameters<CreateService>
     >((input) => Object.assign(new Service(), input));
-    saveServiceMock = jest.fn<
-      ReturnType<SaveService>,
-      Parameters<SaveService>
-    >((service) =>
-      Promise.resolve(
-        Object.assign(service, {
-          id: service.id ?? 'a1b2c3d4-e5f6-7890-abcd-ef1234567890',
-        }) as Service,
-      ),
+    saveServiceMock = jest.fn<ReturnType<SaveService>, Parameters<SaveService>>(
+      (service) =>
+        Promise.resolve(
+          Object.assign(service, {
+            id: service.id ?? 'a1b2c3d4-e5f6-7890-abcd-ef1234567890',
+          }) as Service,
+        ),
     );
     findAndCountServiceMock = jest
       .fn<ReturnType<FindAndCountService>, Parameters<FindAndCountService>>()
@@ -139,6 +131,18 @@ describe('ServicesService', () => {
     softDeleteServiceMock = jest
       .fn<ReturnType<SoftDeleteService>, Parameters<SoftDeleteService>>()
       .mockResolvedValue({ generatedMaps: [], raw: [], affected: 1 });
+    findMock = jest
+      .fn<ReturnType<FindService>, Parameters<FindService>>()
+      .mockResolvedValue([]);
+    managerUpdateMock = jest.fn().mockResolvedValue({ affected: 1 });
+    logMock = jest.fn().mockResolvedValue(undefined);
+
+    const managerMock = {
+      update: managerUpdateMock,
+      transaction: jest.fn(
+        (cb: (manager: unknown) => Promise<void>) => cb(managerMock),
+      ),
+    };
 
     const serviceRepository = {
       findOne: findOneServiceMock,
@@ -147,44 +151,62 @@ describe('ServicesService', () => {
       create: createServiceMock,
       save: saveServiceMock,
       findAndCount: findAndCountServiceMock,
+      find: findMock,
       update: updateServiceMock,
       softDelete: softDeleteServiceMock,
+      manager: managerMock,
     } as unknown as Repository<Service>;
 
-    servicesService = new ServicesService(serviceRepository);
+    const auditService = {
+      log: logMock,
+    } as unknown as AuditService;
+
+    servicesService = new ServicesService(serviceRepository, auditService);
   });
 
   describe('create', () => {
-    it('debe crear y persistir un servicio', async () => {
+    it('debe crear y persistir un servicio generando el slug automaticamente', async () => {
       const dto: CreateServiceDto = {
         name: 'Aislación térmica',
-        slug: 'aislacion-termica',
         description: 'Servicio de aislación',
       };
-      const savedService = Object.assign(new Service(), dto, {
-        id: 'a1b2c3d4-e5f6-7890-abcd-ef1234567890',
-      });
+      findOneServiceMock.mockResolvedValue(null);
 
       const result = await servicesService.create(dto);
 
-      expect(createServiceMock).toHaveBeenCalledWith(dto);
+      expect(createServiceMock).toHaveBeenCalledWith({
+        ...dto,
+        slug: 'aislacion-termica',
+      });
       expect(saveServiceMock).toHaveBeenCalled();
-      expect(result).toEqual(savedService);
       expect(result.name).toBe(dto.name);
-      expect(result.slug).toBe(dto.slug);
+      expect(result.slug).toBe('aislacion-termica');
       expect(result.description).toBe(dto.description);
     });
 
-    it('debe lanzar ConflictException si el slug ya esta en uso', async () => {
+    it('debe generar el slug correctamente para titulos en mayusculas', async () => {
       const dto: CreateServiceDto = {
-        name: 'Otro servicio',
-        slug: 'aislacion-termica',
+        name: 'AHORA SI',
+        description: 'Descripcion',
+      };
+      findOneServiceMock.mockResolvedValue(null);
+
+      const result = await servicesService.create(dto);
+
+      expect(result.slug).toBe('ahora-si');
+    });
+
+    it('debe lanzar ConflictException si el slug generado ya esta en uso', async () => {
+      const dto: CreateServiceDto = {
+        name: 'Aislación térmica',
         description: 'Otro servicio con el mismo slug',
       };
-      findOneServiceMock.mockResolvedValue(buildService({ slug: dto.slug }));
+      findOneServiceMock.mockResolvedValue(
+        buildService({ slug: 'aislacion-termica' }),
+      );
 
       await expect(servicesService.create(dto)).rejects.toThrow(
-        `Service slug "${dto.slug}" is already in use`,
+        'Service slug "aislacion-termica" is already in use',
       );
       expect(createServiceMock).not.toHaveBeenCalled();
       expect(saveServiceMock).not.toHaveBeenCalled();
@@ -257,7 +279,10 @@ describe('ServicesService', () => {
 
   describe('findAllAdmin', () => {
     it('debe listar todos los servicios incluyendo eliminados', async () => {
-      const services = [buildService(), buildService({ deletedAt: new Date() })];
+      const services = [
+        buildService(),
+        buildService({ deletedAt: new Date() }),
+      ];
       findAndCountServiceMock.mockResolvedValue([services, 2]);
 
       const query = buildFindServicesQuery();
@@ -308,7 +333,11 @@ describe('ServicesService', () => {
       expect(result).toBe(service);
       expect(findOneServiceMock).toHaveBeenCalledWith(
         expect.objectContaining({
-          where: { id: service.id, isActive: true, deletedAt: expect.anything() },
+          where: {
+            id: service.id,
+            isActive: true,
+            deletedAt: expect.anything(),
+          },
         }),
       );
     });
@@ -329,14 +358,23 @@ describe('ServicesService', () => {
     it('debe actualizar un servicio existente y retornarlo', async () => {
       const service = buildService();
       const dto: UpdateServiceDto = { name: 'Nuevo nombre' };
-      const updated = buildService({ id: service.id, name: dto.name! });
+      const updated = buildService({
+        id: service.id,
+        name: dto.name!,
+        slug: 'nuevo-nombre',
+      });
 
-      findOneServiceMock.mockResolvedValueOnce(service);
+      findOneServiceMock
+        .mockResolvedValueOnce(service)
+        .mockResolvedValueOnce(null);
       findOneByOrFailServiceMock.mockResolvedValue(updated);
 
       const result = await servicesService.update(service.id, dto);
 
-      expect(updateServiceMock).toHaveBeenCalledWith(service.id, dto);
+      expect(updateServiceMock).toHaveBeenCalledWith(service.id, {
+        ...dto,
+        slug: 'nuevo-nombre',
+      });
       expect(findOneByOrFailServiceMock).toHaveBeenCalledWith({
         id: service.id,
       });
@@ -360,31 +398,51 @@ describe('ServicesService', () => {
       expect(updateServiceMock).not.toHaveBeenCalled();
     });
 
-    it('debe lanzar ConflictException si el nuevo slug ya esta en uso', async () => {
+    it('debe lanzar ConflictException si el nuevo slug generado ya esta en uso', async () => {
       const service = buildService({ id: 'service-to-update' });
-      const dto: UpdateServiceDto = { slug: 'slug-en-uso' };
+      const dto: UpdateServiceDto = { name: 'Nombre en uso' };
       const conflictingService = buildService({
         id: 'other-service',
-        slug: dto.slug,
+        slug: 'nombre-en-uso',
       });
       findOneServiceMock
         .mockResolvedValueOnce(service)
         .mockResolvedValueOnce(conflictingService);
 
       await expect(servicesService.update(service.id, dto)).rejects.toThrow(
-        `Service slug "${dto.slug}" is already in use`,
+        'Service slug "nombre-en-uso" is already in use',
       );
       expect(updateServiceMock).not.toHaveBeenCalled();
+    });
+
+    it('no debe regenerar el slug si el nombre no cambia', async () => {
+      const service = buildService();
+      const dto: UpdateServiceDto = { description: 'Nueva descripcion' };
+      const updated = buildService({
+        id: service.id,
+        description: dto.description,
+      });
+
+      findOneServiceMock.mockResolvedValueOnce(service);
+      findOneByOrFailServiceMock.mockResolvedValue(updated);
+
+      await servicesService.update(service.id, dto);
+
+      expect(updateServiceMock).toHaveBeenCalledWith(service.id, dto);
     });
   });
 
   describe('remove', () => {
-    it('debe hacer soft delete de un servicio existente', async () => {
+    it('debe hacer soft delete de un servicio existente y reordenar los restantes', async () => {
       const service = buildService();
       findOneServiceMock.mockResolvedValue(service);
 
       await expect(servicesService.remove(service.id)).resolves.toBeUndefined();
       expect(softDeleteServiceMock).toHaveBeenCalledWith(service.id);
+      expect(findMock).toHaveBeenCalledWith({
+        where: { deletedAt: expect.anything() },
+        order: { displayOrder: 'ASC' },
+      });
     });
 
     it('debe lanzar NotFoundException si el servicio no existe', async () => {
@@ -403,15 +461,16 @@ describe('ServicesService', () => {
       const restored = buildService({
         id: service.id,
         deletedAt: null,
-        isActive: true,
+        isActive: false,
       });
-      findOneServiceMock.mockResolvedValueOnce(service);
+      findOneServiceMock
+        .mockResolvedValueOnce(service)
+        .mockResolvedValueOnce(null);
       saveServiceMock.mockResolvedValue(restored);
 
       const result = await servicesService.restore(service.id);
 
       expect(service.deletedAt).toBeNull();
-      expect(service.isActive).toBe(true);
       expect(saveServiceMock).toHaveBeenCalledWith(service);
       expect(result).toBe(restored);
     });
@@ -437,7 +496,10 @@ describe('ServicesService', () => {
     });
 
     it('debe lanzar ConflictException si el slug ya esta en uso al restaurar', async () => {
-      const service = buildService({ id: 'deleted-service', deletedAt: new Date() });
+      const service = buildService({
+        id: 'deleted-service',
+        deletedAt: new Date(),
+      });
       const conflictingService = buildService({
         id: 'active-service',
         slug: service.slug,
@@ -450,6 +512,144 @@ describe('ServicesService', () => {
         `Service slug "${service.slug}" is already in use`,
       );
       expect(saveServiceMock).not.toHaveBeenCalled();
+    });
+  });
+
+  describe('publish', () => {
+    const userId = 'user-id';
+
+    it('debe publicar un servicio y registrar auditoria', async () => {
+      const service = buildService({ isActive: false });
+      const published = buildService({ id: service.id, isActive: true });
+      findOneServiceMock.mockResolvedValue(service);
+      saveServiceMock.mockResolvedValue(published);
+
+      const result = await servicesService.publish(service.id, userId);
+
+      expect(result.isActive).toBe(true);
+      expect(logMock).toHaveBeenCalledWith({
+        action: AuditAction.UPDATE,
+        entityName: 'Service',
+        entityId: service.id,
+        userId,
+        previousData: { isActive: false },
+        newData: { isActive: true },
+        ipAddress: null,
+        userAgent: null,
+      });
+    });
+
+    it('debe lanzar NotFoundException si el servicio no existe', async () => {
+      findOneServiceMock.mockResolvedValue(null);
+
+      await expect(servicesService.publish('no-existe', userId)).rejects.toThrow(
+        NotFoundException,
+      );
+    });
+
+    it('debe lanzar ConflictException si el servicio ya esta publicado', async () => {
+      const service = buildService({ isActive: true });
+      findOneServiceMock.mockResolvedValue(service);
+
+      await expect(
+        servicesService.publish(service.id, userId),
+      ).rejects.toThrow(ConflictException);
+      await expect(
+        servicesService.publish(service.id, userId),
+      ).rejects.toThrow(
+        `Service with id "${service.id}" is already published`,
+      );
+    });
+  });
+
+  describe('unpublish', () => {
+    const userId = 'user-id';
+
+    it('debe despublicar un servicio y registrar auditoria', async () => {
+      const service = buildService({ isActive: true });
+      const unpublished = buildService({ id: service.id, isActive: false });
+      findOneServiceMock.mockResolvedValue(service);
+      saveServiceMock.mockResolvedValue(unpublished);
+
+      const result = await servicesService.unpublish(service.id, userId);
+
+      expect(result.isActive).toBe(false);
+      expect(logMock).toHaveBeenCalledWith({
+        action: AuditAction.UPDATE,
+        entityName: 'Service',
+        entityId: service.id,
+        userId,
+        previousData: { isActive: true },
+        newData: { isActive: false },
+        ipAddress: null,
+        userAgent: null,
+      });
+    });
+
+    it('debe lanzar NotFoundException si el servicio no existe', async () => {
+      findOneServiceMock.mockResolvedValue(null);
+
+      await expect(
+        servicesService.unpublish('no-existe', userId),
+      ).rejects.toThrow(NotFoundException);
+    });
+
+    it('debe lanzar ConflictException si el servicio ya esta despublicado', async () => {
+      const service = buildService({ isActive: false });
+      findOneServiceMock.mockResolvedValue(service);
+
+      await expect(
+        servicesService.unpublish(service.id, userId),
+      ).rejects.toThrow(ConflictException);
+      await expect(
+        servicesService.unpublish(service.id, userId),
+      ).rejects.toThrow(
+        `Service with id "${service.id}" is already unpublished`,
+      );
+    });
+  });
+
+  describe('reorder', () => {
+    it('debe reordenar los servicios en una transaccion', async () => {
+      const services = [
+        buildService({ id: 's-1', displayOrder: 2 }),
+        buildService({ id: 's-2', displayOrder: 0 }),
+        buildService({ id: 's-3', displayOrder: 1 }),
+      ];
+      const orderedIds = ['s-2', 's-3', 's-1'];
+      findMock.mockResolvedValue(services);
+
+      await servicesService.reorder(orderedIds);
+
+      expect(findMock).toHaveBeenCalledWith({
+        where: { deletedAt: expect.anything() },
+      });
+      expect(managerUpdateMock).toHaveBeenCalledTimes(3);
+      expect(managerUpdateMock).toHaveBeenNthCalledWith(1, Service, 's-2', {
+        displayOrder: 0,
+      });
+      expect(managerUpdateMock).toHaveBeenNthCalledWith(2, Service, 's-3', {
+        displayOrder: 1,
+      });
+      expect(managerUpdateMock).toHaveBeenNthCalledWith(3, Service, 's-1', {
+        displayOrder: 2,
+      });
+    });
+
+    it('debe lanzar NotFoundException si algun id no existe', async () => {
+      const services = [buildService({ id: 's-1' })];
+      const orderedIds = ['s-1', 'no-existe'];
+      findMock.mockResolvedValue(services);
+
+      await expect(servicesService.reorder(orderedIds)).rejects.toThrow(
+        'Service with id "no-existe" not found',
+      );
+    });
+
+    it('no debe fallar si el array esta vacio', async () => {
+      findMock.mockResolvedValue([]);
+
+      await expect(servicesService.reorder([])).resolves.toBeUndefined();
     });
   });
 });
