@@ -79,6 +79,16 @@ export class ServicesService {
     return buildPaginatedResponse(data, total, query.page, query.limit);
   }
 
+  async findBySlug(slug: string): Promise<Service> {
+    const service = await this.serviceRepository.findOne({
+      where: { slug, isActive: true, deletedAt: IsNull() },
+    });
+    if (!service) {
+      throw new NotFoundException(`Service with slug "${slug}" not found`);
+    }
+    return service;
+  }
+
   async findOne(id: string): Promise<Service> {
     const service = await this.serviceRepository.findOne({
       where: { id, isActive: true, deletedAt: IsNull() },
