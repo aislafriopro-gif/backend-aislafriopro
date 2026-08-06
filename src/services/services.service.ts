@@ -120,6 +120,7 @@ export class ServicesService {
       throw new NotFoundException(`Service with id "${id}" not found`);
     }
     await this.serviceRepository.softDelete(id);
+    await this.reorderRemaining();
   }
 
   async restore(id: string): Promise<Service> {
@@ -206,6 +207,27 @@ export class ServicesService {
     return saved;
   }
 
+  async reorder(orderedIds: string[]): Promise<void> {
+    const services = await this.serviceRepository.find({
+      where: { deletedAt: IsNull() },
+    });
+    const activeIds = new Set(services.map((s) => s.id));
+
+    for (const id of orderedIds) {
+      if (!activeIds.has(id)) {
+        throw new NotFoundException(`Service with id "${id}" not found`);
+      }
+    }
+
+    await this.serviceRepository.manager.transaction(async (manager) => {
+      for (let index = 0; index < orderedIds.length; index++) {
+        await manager.update(Service, orderedIds[index], {
+          displayOrder: index,
+        });
+      }
+    });
+  }
+
   private generateSlug(name: string): string {
     const normalized = name
       .toLowerCase()
@@ -226,6 +248,20 @@ export class ServicesService {
 
     if (existingService && existingService.id !== excludedId) {
       throw new ConflictException(`Service slug "${slug}" is already in use`);
+    }
+  }
+
+  private async reorderRemaining(): Promise<void> {
+    const services = await this.serviceRepository.find({
+      where: { deletedAt: IsNull() },
+      order: { displayOrder: 'ASC' },
+    });
+    for (let i = 0; i < services.length; i++) {
+      if (services[i].displayOrder !== i) {
+        await this.serviceRepository.update(services[i].id, {
+          displayOrder: i,
+        });
+      }
     }
   }
 }

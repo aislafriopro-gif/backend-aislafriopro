@@ -23,6 +23,7 @@ import { Service } from './entities/service.entity';
 import { PaginatedResponse } from '../common/pagination';
 import { CreateServiceDto } from './dto/create-service.dto';
 import { UpdateServiceDto } from './dto/update-service.dto';
+import { ReorderServicesDto } from './dto/reorder-services.dto';
 import { ServiceResponseDto } from './dto/service-response.dto';
 import { FindServicesQueryDto } from './dto/find-services-query.dto';
 
@@ -105,6 +106,18 @@ export class ServicesController {
   ): Promise<ServiceResponseDto> {
     const service = await this.servicesService.findOne(id);
     return plainToInstance(ServiceResponseDto, service);
+  }
+
+  @Patch('reorder')
+  @Auth(RoleName.ADMIN)
+  @HttpCode(HttpStatus.NO_CONTENT)
+  @ApiOperation({ summary: 'Reordenar servicios (ADMIN)' })
+  @ApiResponse({ status: 204, description: 'Servicios reordenados' })
+  @ApiResponse({ status: 404, description: 'Algún servicio no encontrado' })
+  async reorder(
+    @Body() reorderServicesDto: ReorderServicesDto,
+  ): Promise<void> {
+    await this.servicesService.reorder(reorderServicesDto.orderedIds);
   }
 
   @Patch(':id')

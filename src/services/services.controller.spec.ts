@@ -5,6 +5,7 @@ import { CreateServiceDto } from './dto/create-service.dto';
 import { UpdateServiceDto } from './dto/update-service.dto';
 import { ServiceResponseDto } from './dto/service-response.dto';
 import { FindServicesQueryDto } from './dto/find-services-query.dto';
+import { ReorderServicesDto } from './dto/reorder-services.dto';
 import { RoleName } from '../roles/entities/roles.entity';
 import { Request } from 'express';
 
@@ -57,6 +58,7 @@ describe('ServicesController', () => {
   let restoreMock: jest.MockedFunction<ServicesService['restore']>;
   let publishMock: jest.MockedFunction<ServicesService['publish']>;
   let unpublishMock: jest.MockedFunction<ServicesService['unpublish']>;
+  let reorderMock: jest.MockedFunction<ServicesService['reorder']>;
 
   beforeEach(() => {
     createMock = jest.fn();
@@ -68,6 +70,7 @@ describe('ServicesController', () => {
     restoreMock = jest.fn();
     publishMock = jest.fn();
     unpublishMock = jest.fn();
+    reorderMock = jest.fn();
 
     const servicesService = {
       create: createMock,
@@ -79,6 +82,7 @@ describe('ServicesController', () => {
       restore: restoreMock,
       publish: publishMock,
       unpublish: unpublishMock,
+      reorder: reorderMock,
     } as unknown as ServicesService;
 
     servicesController = new ServicesController(servicesService);
@@ -267,6 +271,20 @@ describe('ServicesController', () => {
         ipAddress: '127.0.0.1',
         userAgent: 'test-agent',
       });
+    });
+  });
+
+  describe('reorder', () => {
+    it('debe reordenar servicios', async () => {
+      const dto: ReorderServicesDto = {
+        orderedIds: ['s-1', 's-2', 's-3'],
+      };
+      reorderMock.mockResolvedValue(undefined);
+
+      await expect(
+        servicesController.reorder(dto),
+      ).resolves.toBeUndefined();
+      expect(reorderMock).toHaveBeenCalledWith(dto.orderedIds);
     });
   });
 });

@@ -14,6 +14,7 @@ type FindOneByService = Repository<Service>['findOneBy'];
 type FindOneByOrFailService = Repository<Service>['findOneByOrFail'];
 type CreateService = Repository<Service>['create'];
 type SaveService = Repository<Service>['save'];
+type FindService = Repository<Service>['find'];
 type FindAndCountService = Repository<Service>['findAndCount'];
 type UpdateService = Repository<Service>['update'];
 type SoftDeleteService = Repository<Service>['softDelete'];
@@ -90,6 +91,8 @@ describe('ServicesService', () => {
     ReturnType<SoftDeleteService>,
     Parameters<SoftDeleteService>
   >;
+  let findMock: jest.Mock<ReturnType<FindService>, Parameters<FindService>>;
+  let managerUpdateMock: jest.Mock;
   let logMock: jest.Mock;
 
   beforeEach(() => {
@@ -128,7 +131,18 @@ describe('ServicesService', () => {
     softDeleteServiceMock = jest
       .fn<ReturnType<SoftDeleteService>, Parameters<SoftDeleteService>>()
       .mockResolvedValue({ generatedMaps: [], raw: [], affected: 1 });
+    findMock = jest
+      .fn<ReturnType<FindService>, Parameters<FindService>>()
+      .mockResolvedValue([]);
+    managerUpdateMock = jest.fn().mockResolvedValue({ affected: 1 });
     logMock = jest.fn().mockResolvedValue(undefined);
+
+    const managerMock = {
+      update: managerUpdateMock,
+      transaction: jest.fn(
+        (cb: (manager: unknown) => Promise<void>) => cb(managerMock),
+      ),
+    };
 
     const serviceRepository = {
       findOne: findOneServiceMock,
@@ -137,8 +151,10 @@ describe('ServicesService', () => {
       create: createServiceMock,
       save: saveServiceMock,
       findAndCount: findAndCountServiceMock,
+      find: findMock,
       update: updateServiceMock,
       softDelete: softDeleteServiceMock,
+      manager: managerMock,
     } as unknown as Repository<Service>;
 
     const auditService = {
@@ -417,12 +433,16 @@ describe('ServicesService', () => {
   });
 
   describe('remove', () => {
-    it('debe hacer soft delete de un servicio existente', async () => {
+    it('debe hacer soft delete de un servicio existente y reordenar los restantes', async () => {
       const service = buildService();
       findOneServiceMock.mockResolvedValue(service);
 
       await expect(servicesService.remove(service.id)).resolves.toBeUndefined();
       expect(softDeleteServiceMock).toHaveBeenCalledWith(service.id);
+      expect(findMock).toHaveBeenCalledWith({
+        where: { deletedAt: expect.anything() },
+        order: { displayOrder: 'ASC' },
+      });
     });
 
     it('debe lanzar NotFoundException si el servicio no existe', async () => {
@@ -586,6 +606,50 @@ describe('ServicesService', () => {
       ).rejects.toThrow(
         `Service with id "${service.id}" is already unpublished`,
       );
+    });
+  });
+
+  describe('reorder', () => {
+    it('debe reordenar los servicios en una transaccion', async () => {
+      const services = [
+        buildService({ id: 's-1', displayOrder: 2 }),
+        buildService({ id: 's-2', displayOrder: 0 }),
+        buildService({ id: 's-3', displayOrder: 1 }),
+      ];
+      const orderedIds = ['s-2', 's-3', 's-1'];
+      findMock.mockResolvedValue(services);
+
+      await servicesService.reorder(orderedIds);
+
+      expect(findMock).toHaveBeenCalledWith({
+        where: { deletedAt: expect.anything() },
+      });
+      expect(managerUpdateMock).toHaveBeenCalledTimes(3);
+      expect(managerUpdateMock).toHaveBeenNthCalledWith(1, Service, 's-2', {
+        displayOrder: 0,
+      });
+      expect(managerUpdateMock).toHaveBeenNthCalledWith(2, Service, 's-3', {
+        displayOrder: 1,
+      });
+      expect(managerUpdateMock).toHaveBeenNthCalledWith(3, Service, 's-1', {
+        displayOrder: 2,
+      });
+    });
+
+    it('debe lanzar NotFoundException si algun id no existe', async () => {
+      const services = [buildService({ id: 's-1' })];
+      const orderedIds = ['s-1', 'no-existe'];
+      findMock.mockResolvedValue(services);
+
+      await expect(servicesService.reorder(orderedIds)).rejects.toThrow(
+        'Service with id "no-existe" not found',
+      );
+    });
+
+    it('no debe fallar si el array esta vacio', async () => {
+      findMock.mockResolvedValue([]);
+
+      await expect(servicesService.reorder([])).resolves.toBeUndefined();
     });
   });
 });
