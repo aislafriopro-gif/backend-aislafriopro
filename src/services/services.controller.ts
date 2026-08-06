@@ -10,18 +10,35 @@ import {
   HttpCode,
   HttpStatus,
   Query,
+  Req,
 } from '@nestjs/common';
+import { Request } from 'express';
 import { plainToInstance } from 'class-transformer';
 import { ApiTags, ApiOperation, ApiResponse, ApiParam } from '@nestjs/swagger';
 import { Auth } from '../common/decorators/auth.decorator';
+import { CurrentUser } from '../common/decorators/current-user.decorator';
 import { RoleName } from '../roles/entities/roles.entity';
-import { ServicesService } from './services.service';
+import { ServicesService, RequestContext } from './services.service';
 import { Service } from './entities/service.entity';
 import { PaginatedResponse } from '../common/pagination';
 import { CreateServiceDto } from './dto/create-service.dto';
 import { UpdateServiceDto } from './dto/update-service.dto';
+import { ReorderServicesDto } from './dto/reorder-services.dto';
 import { ServiceResponseDto } from './dto/service-response.dto';
 import { FindServicesQueryDto } from './dto/find-services-query.dto';
+
+interface RequestUser {
+  userId: string;
+  email: string;
+  role: RoleName;
+}
+
+function extractRequestContext(req: Request): RequestContext {
+  return {
+    ipAddress: (req.headers['x-forwarded-for'] as string) ?? req.ip ?? null,
+    userAgent: req.headers['user-agent'] ?? null,
+  };
+}
 
 @ApiTags('Services')
 @Controller('services')
@@ -91,6 +108,18 @@ export class ServicesController {
     return plainToInstance(ServiceResponseDto, service);
   }
 
+  @Patch('reorder')
+  @Auth(RoleName.ADMIN)
+  @HttpCode(HttpStatus.NO_CONTENT)
+  @ApiOperation({ summary: 'Reordenar servicios (ADMIN)' })
+  @ApiResponse({ status: 204, description: 'Servicios reordenados' })
+  @ApiResponse({ status: 404, description: 'Algún servicio no encontrado' })
+  async reorder(
+    @Body() reorderServicesDto: ReorderServicesDto,
+  ): Promise<void> {
+    await this.servicesService.reorder(reorderServicesDto.orderedIds);
+  }
+
   @Patch(':id')
   @Auth(RoleName.ADMIN)
   @ApiOperation({ summary: 'Editar un servicio (ADMIN)' })
@@ -134,5 +163,47 @@ export class ServicesController {
     @Param('id', new ParseUUIDPipe()) id: string,
   ): Promise<Service> {
     return this.servicesService.restore(id);
+  }
+
+  @Patch(':id/publish')
+  @Auth(RoleName.ADMIN)
+  @ApiOperation({ summary: 'Publicar un servicio (ADMIN)' })
+  @ApiParam({ name: 'id', type: 'string', format: 'uuid' })
+  @ApiResponse({ status: 200, description: 'Servicio publicado', type: Service })
+  @ApiResponse({ status: 404, description: 'Servicio no encontrado' })
+  @ApiResponse({ status: 409, description: 'El servicio ya está publicado' })
+  async publish(
+    @Param('id', new ParseUUIDPipe()) id: string,
+    @CurrentUser() requestUser: RequestUser,
+    @Req() req: Request,
+  ): Promise<Service> {
+    return this.servicesService.publish(
+      id,
+      requestUser.userId,
+      extractRequestContext(req),
+    );
+  }
+
+  @Patch(':id/unpublish')
+  @Auth(RoleName.ADMIN)
+  @ApiOperation({ summary: 'Despublicar un servicio (ADMIN)' })
+  @ApiParam({ name: 'id', type: 'string', format: 'uuid' })
+  @ApiResponse({
+    status: 200,
+    description: 'Servicio despublicado',
+    type: Service,
+  })
+  @ApiResponse({ status: 404, description: 'Servicio no encontrado' })
+  @ApiResponse({ status: 409, description: 'El servicio ya está despublicado' })
+  async unpublish(
+    @Param('id', new ParseUUIDPipe()) id: string,
+    @CurrentUser() requestUser: RequestUser,
+    @Req() req: Request,
+  ): Promise<Service> {
+    return this.servicesService.unpublish(
+      id,
+      requestUser.userId,
+      extractRequestContext(req),
+    );
   }
 }
