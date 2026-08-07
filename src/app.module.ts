@@ -13,6 +13,7 @@ import { RolesModule } from './roles/roles.module';
 import { ServicesModule } from './services/services.module';
 import { HealthModule } from './health/health.module';
 import { FaqsModule } from './faqs/faqs.module';
+import { SiteSettingsModule } from './site-settings/site-settings.module';
 
 @Module({
   imports: [
@@ -53,6 +54,7 @@ import { FaqsModule } from './faqs/faqs.module';
     ServicesModule,
     HealthModule,
     FaqsModule,
+    SiteSettingsModule,
   ],
   controllers: [AppController],
   providers: [AppService],
