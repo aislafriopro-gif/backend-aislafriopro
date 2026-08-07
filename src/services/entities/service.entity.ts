@@ -34,7 +34,7 @@ export class Service {
   @Column({ type: 'varchar', length: 500, nullable: true })
   imageUrl!: string | null;
 
-  @Column({ type: 'boolean', default: true })
+  @Column({ type: 'boolean', default: false })
   isActive!: boolean;
 
   @Column({ type: 'int', nullable: true })
