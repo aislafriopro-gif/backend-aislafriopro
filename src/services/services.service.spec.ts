@@ -1,5 +1,5 @@
 import { NotFoundException, ConflictException } from '@nestjs/common';
-import { Repository } from 'typeorm';
+import { EntityManager, Repository } from 'typeorm';
 import { Service } from './entities/service.entity';
 import { ServicesService } from './services.service';
 import { AuditService } from '../audit/audit.service';
@@ -138,11 +138,13 @@ describe('ServicesService', () => {
     logMock = jest.fn().mockResolvedValue(undefined);
 
     const managerMock = {
+      save: saveServiceMock,
+      find: findMock,
       update: managerUpdateMock,
-      transaction: jest.fn(
-        (cb: (manager: unknown) => Promise<void>) => cb(managerMock),
+      transaction: jest.fn((cb: (manager: unknown) => Promise<unknown>) =>
+        cb(managerMock),
       ),
-    };
+    } as unknown as EntityManager;
 
     const serviceRepository = {
       findOne: findOneServiceMock,
@@ -210,6 +212,65 @@ describe('ServicesService', () => {
       );
       expect(createServiceMock).not.toHaveBeenCalled();
       expect(saveServiceMock).not.toHaveBeenCalled();
+    });
+
+    it('debe colocar el servicio creado al final del orden entre activos y no eliminados', async () => {
+      const dto: CreateServiceDto = {
+        name: 'Nuevo servicio',
+        description: 'Descripcion',
+      };
+      const existingServices = [
+        buildService({ id: 's-1', displayOrder: 5 }),
+        buildService({ id: 's-2', displayOrder: 3 }),
+      ];
+      const newService = buildService({
+        id: 'new-id',
+        name: dto.name,
+        slug: 'nuevo-servicio',
+        displayOrder: null,
+      });
+
+      findOneServiceMock.mockResolvedValue(null);
+      createServiceMock.mockReturnValue(newService);
+      saveServiceMock.mockResolvedValue(newService);
+      findMock.mockResolvedValue([...existingServices, newService]);
+
+      await servicesService.create(dto);
+
+      expect(managerUpdateMock).toHaveBeenCalledTimes(3);
+      expect(managerUpdateMock).toHaveBeenNthCalledWith(1, Service, 's-1', {
+        displayOrder: 0,
+      });
+      expect(managerUpdateMock).toHaveBeenNthCalledWith(2, Service, 's-2', {
+        displayOrder: 1,
+      });
+      expect(managerUpdateMock).toHaveBeenNthCalledWith(3, Service, 'new-id', {
+        displayOrder: 2,
+      });
+    });
+
+    it('no debe reordenar si el servicio se crea con isActive en false', async () => {
+      const dto: CreateServiceDto = {
+        name: 'Nuevo servicio',
+        description: 'Descripcion',
+        isActive: false,
+      };
+      const newService = buildService({
+        id: 'new-id',
+        name: dto.name,
+        slug: 'nuevo-servicio',
+        isActive: false,
+        displayOrder: null,
+      });
+
+      findOneServiceMock.mockResolvedValue(null);
+      createServiceMock.mockReturnValue(newService);
+      saveServiceMock.mockResolvedValue(newService);
+
+      await servicesService.create(dto);
+
+      expect(findMock).not.toHaveBeenCalled();
+      expect(managerUpdateMock).not.toHaveBeenCalled();
     });
   });
 
@@ -513,6 +574,50 @@ describe('ServicesService', () => {
       );
       expect(saveServiceMock).not.toHaveBeenCalled();
     });
+
+    it('debe colocar el servicio restaurado al final del orden entre no eliminados', async () => {
+      const deletedAt = new Date();
+      const service = buildService({
+        id: 'to-restore',
+        deletedAt,
+        isActive: false,
+        displayOrder: null,
+      });
+      const restored = buildService({
+        id: 'to-restore',
+        deletedAt: null,
+        isActive: false,
+        displayOrder: null,
+      });
+      const existingServices = [
+        buildService({ id: 's-1', displayOrder: 5 }),
+        buildService({ id: 's-2', displayOrder: 3 }),
+      ];
+
+      findOneServiceMock
+        .mockResolvedValueOnce(service)
+        .mockResolvedValueOnce(null);
+      saveServiceMock.mockResolvedValue(restored);
+      findMock.mockResolvedValue([...existingServices, restored]);
+
+      await servicesService.restore(service.id);
+
+      expect(managerUpdateMock).toHaveBeenCalledTimes(3);
+      expect(managerUpdateMock).toHaveBeenNthCalledWith(1, Service, 's-1', {
+        displayOrder: 0,
+      });
+      expect(managerUpdateMock).toHaveBeenNthCalledWith(2, Service, 's-2', {
+        displayOrder: 1,
+      });
+      expect(managerUpdateMock).toHaveBeenNthCalledWith(
+        3,
+        Service,
+        'to-restore',
+        {
+          displayOrder: 2,
+        },
+      );
+    });
   });
 
   describe('publish', () => {
@@ -542,22 +647,59 @@ describe('ServicesService', () => {
     it('debe lanzar NotFoundException si el servicio no existe', async () => {
       findOneServiceMock.mockResolvedValue(null);
 
-      await expect(servicesService.publish('no-existe', userId)).rejects.toThrow(
-        NotFoundException,
-      );
+      await expect(
+        servicesService.publish('no-existe', userId),
+      ).rejects.toThrow(NotFoundException);
     });
 
     it('debe lanzar ConflictException si el servicio ya esta publicado', async () => {
       const service = buildService({ isActive: true });
       findOneServiceMock.mockResolvedValue(service);
 
-      await expect(
-        servicesService.publish(service.id, userId),
-      ).rejects.toThrow(ConflictException);
-      await expect(
-        servicesService.publish(service.id, userId),
-      ).rejects.toThrow(
+      await expect(servicesService.publish(service.id, userId)).rejects.toThrow(
+        ConflictException,
+      );
+      await expect(servicesService.publish(service.id, userId)).rejects.toThrow(
         `Service with id "${service.id}" is already published`,
+      );
+    });
+
+    it('debe colocar el servicio publicado al final del orden entre activos y no eliminados', async () => {
+      const service = buildService({
+        id: 'to-publish',
+        isActive: false,
+        displayOrder: null,
+      });
+      const published = buildService({
+        id: 'to-publish',
+        isActive: true,
+        displayOrder: null,
+      });
+      const existingServices = [
+        buildService({ id: 's-1', displayOrder: 5 }),
+        buildService({ id: 's-2', displayOrder: 3 }),
+      ];
+
+      findOneServiceMock.mockResolvedValue(service);
+      saveServiceMock.mockResolvedValue(published);
+      findMock.mockResolvedValue([...existingServices, published]);
+
+      await servicesService.publish(service.id, userId);
+
+      expect(managerUpdateMock).toHaveBeenCalledTimes(3);
+      expect(managerUpdateMock).toHaveBeenNthCalledWith(1, Service, 's-1', {
+        displayOrder: 0,
+      });
+      expect(managerUpdateMock).toHaveBeenNthCalledWith(2, Service, 's-2', {
+        displayOrder: 1,
+      });
+      expect(managerUpdateMock).toHaveBeenNthCalledWith(
+        3,
+        Service,
+        'to-publish',
+        {
+          displayOrder: 2,
+        },
       );
     });
   });

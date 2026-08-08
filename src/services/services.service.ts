@@ -4,7 +4,13 @@ import {
   ConflictException,
 } from '@nestjs/common';
 import { InjectRepository } from '@nestjs/typeorm';
-import { FindOptionsWhere, ILike, IsNull, Repository } from 'typeorm';
+import {
+  EntityManager,
+  FindOptionsWhere,
+  ILike,
+  IsNull,
+  Repository,
+} from 'typeorm';
 import { Service } from './entities/service.entity';
 import {
   PaginatedResponse,
@@ -32,11 +38,22 @@ export class ServicesService {
   async create(createServiceDto: CreateServiceDto): Promise<Service> {
     const slug = this.generateSlug(createServiceDto.name);
     await this.ensureSlugAvailable(slug);
-    const service = this.serviceRepository.create({
-      ...createServiceDto,
-      slug,
+
+    return this.serviceRepository.manager.transaction(async (manager) => {
+      const service = this.serviceRepository.create({
+        ...createServiceDto,
+        slug,
+      });
+      const saved = await manager.save(service);
+      if (saved.isActive) {
+        await this.moveToLast(
+          saved.id,
+          { isActive: true, deletedAt: IsNull() },
+          manager,
+        );
+      }
+      return saved;
     });
-    return this.serviceRepository.save(service);
   }
 
   async findAll(
@@ -137,8 +154,13 @@ export class ServicesService {
     }
 
     await this.ensureSlugAvailable(service.slug, id);
-    service.deletedAt = null;
-    return this.serviceRepository.save(service);
+
+    return this.serviceRepository.manager.transaction(async (manager) => {
+      service.deletedAt = null;
+      const saved = await manager.save(service);
+      await this.moveToLast(saved.id, { deletedAt: IsNull() }, manager);
+      return saved;
+    });
   }
 
   async publish(
@@ -153,24 +175,34 @@ export class ServicesService {
       throw new NotFoundException(`Service with id "${id}" not found`);
     }
     if (service.isActive) {
-      throw new ConflictException(`Service with id "${id}" is already published`);
+      throw new ConflictException(
+        `Service with id "${id}" is already published`,
+      );
     }
 
-    service.isActive = true;
-    const saved = await this.serviceRepository.save(service);
+    return this.serviceRepository.manager.transaction(async (manager) => {
+      service.isActive = true;
+      const saved = await manager.save(service);
 
-    await this.auditService.log({
-      action: AuditAction.UPDATE,
-      entityName: 'Service',
-      entityId: id,
-      userId,
-      previousData: { isActive: false },
-      newData: { isActive: true },
-      ipAddress: requestContext?.ipAddress ?? null,
-      userAgent: requestContext?.userAgent ?? null,
+      await this.auditService.log({
+        action: AuditAction.UPDATE,
+        entityName: 'Service',
+        entityId: id,
+        userId,
+        previousData: { isActive: false },
+        newData: { isActive: true },
+        ipAddress: requestContext?.ipAddress ?? null,
+        userAgent: requestContext?.userAgent ?? null,
+      });
+
+      await this.moveToLast(
+        saved.id,
+        { isActive: true, deletedAt: IsNull() },
+        manager,
+      );
+
+      return saved;
     });
-
-    return saved;
   }
 
   async unpublish(
@@ -226,6 +258,35 @@ export class ServicesService {
         });
       }
     });
+  }
+
+  private async moveToLast(
+    serviceId: string,
+    criteria: FindOptionsWhere<Service>,
+    manager: EntityManager,
+  ): Promise<void> {
+    const services = await manager.find(Service, {
+      where: criteria,
+      order: { displayOrder: 'ASC' },
+    });
+
+    const targetIndex = services.findIndex(
+      (service) => service.id === serviceId,
+    );
+    if (targetIndex === -1) {
+      return;
+    }
+
+    const [target] = services.splice(targetIndex, 1);
+    services.push(target);
+
+    for (let index = 0; index < services.length; index++) {
+      if (services[index].displayOrder !== index) {
+        await manager.update(Service, services[index].id, {
+          displayOrder: index,
+        });
+      }
+    }
   }
 
   private generateSlug(name: string): string {
