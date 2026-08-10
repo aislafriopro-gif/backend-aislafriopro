@@ -28,6 +28,11 @@ export interface ApplicationConfiguration {
     refreshSecret: string;
     refreshExpiresInSeconds: number;
   };
+  cloudinary: {
+    cloudName: string;
+    apiKey: string;
+    apiSecret: string;
+  };
 }
 
 const DEFAULT_PORT = 3000;
@@ -293,6 +298,10 @@ export function validateEnvironment(
     DEFAULT_JWT_REFRESH_EXPIRES_IN_SECONDS,
   );
 
+  readRequiredString(source, 'CLOUDINARY_CLOUD_NAME');
+  readRequiredString(source, 'CLOUDINARY_API_KEY');
+  readRequiredString(source, 'CLOUDINARY_API_SECRET');
+
   return source;
 }
 
@@ -338,6 +347,11 @@ export default (): ApplicationConfiguration => {
         'JWT_REFRESH_EXPIRES_IN_SECONDS',
         DEFAULT_JWT_REFRESH_EXPIRES_IN_SECONDS,
       ),
+    },
+    cloudinary: {
+      cloudName: readRequiredString(process.env, 'CLOUDINARY_CLOUD_NAME'),
+      apiKey: readRequiredString(process.env, 'CLOUDINARY_API_KEY'),
+      apiSecret: readRequiredString(process.env, 'CLOUDINARY_API_SECRET'),
     },
   };
 };
