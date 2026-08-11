@@ -32,6 +32,7 @@ export interface ApplicationConfiguration {
     cloudName: string;
     apiKey: string;
     apiSecret: string;
+    maxImageSizeBytes: number;
   };
 }
 
@@ -255,8 +256,14 @@ function readCloudinaryConfiguration(source: Record<string, unknown>): {
   cloudName: string;
   apiKey: string;
   apiSecret: string;
+  maxImageSizeBytes: number;
 } {
   const cloudinaryUrl = readOptionalString(source, 'CLOUDINARY_URL');
+  const maxImageSizeBytes = readPositiveInteger(
+    source,
+    'CLOUDINARY_MAX_IMAGE_SIZE_BYTES',
+    5 * 1024 * 1024,
+  );
 
   if (cloudinaryUrl) {
     try {
@@ -278,6 +285,7 @@ function readCloudinaryConfiguration(source: Record<string, unknown>): {
         cloudName,
         apiKey,
         apiSecret,
+        maxImageSizeBytes,
       };
     } catch {
       throw new Error(
@@ -290,6 +298,7 @@ function readCloudinaryConfiguration(source: Record<string, unknown>): {
     cloudName: readRequiredString(source, 'CLOUDINARY_CLOUD_NAME'),
     apiKey: readRequiredString(source, 'CLOUDINARY_API_KEY'),
     apiSecret: readRequiredString(source, 'CLOUDINARY_API_SECRET'),
+    maxImageSizeBytes,
   };
 }
 
