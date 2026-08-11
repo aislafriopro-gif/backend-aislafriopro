@@ -11,9 +11,11 @@ import configuration, {
 import { UsersModule } from './users/users.module';
 import { RolesModule } from './roles/roles.module';
 import { ServicesModule } from './services/services.module';
+import { QuoteRequestsModule } from './quote-requests/quote-requests.module';
 import { HealthModule } from './health/health.module';
 import { FaqsModule } from './faqs/faqs.module';
 import { SiteSettingsModule } from './site-settings/site-settings.module';
+import { CloudinaryModule } from './media/cloudinary.module';
 
 @Module({
   imports: [
@@ -52,9 +54,11 @@ import { SiteSettingsModule } from './site-settings/site-settings.module';
     UsersModule,
     RolesModule,
     ServicesModule,
+    QuoteRequestsModule,
     HealthModule,
     FaqsModule,
     SiteSettingsModule,
+    CloudinaryModule,
   ],
   controllers: [AppController],
   providers: [AppService],

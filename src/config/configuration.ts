@@ -28,6 +28,11 @@ export interface ApplicationConfiguration {
     refreshSecret: string;
     refreshExpiresInSeconds: number;
   };
+  cloudinary: {
+    cloudName: string;
+    apiKey: string;
+    apiSecret: string;
+  };
 }
 
 const DEFAULT_PORT = 3000;
@@ -45,6 +50,23 @@ function readRequiredString(
 
   if (typeof value !== 'string' || value.trim().length === 0) {
     throw new Error(`La variable de entorno ${key} es obligatoria.`);
+  }
+
+  return value.trim();
+}
+
+function readOptionalString(
+  source: Record<string, unknown>,
+  key: string,
+): string | null {
+  const value = source[key];
+
+  if (value === undefined || value === null || value === '') {
+    return null;
+  }
+
+  if (typeof value !== 'string' || value.trim().length === 0) {
+    throw new Error(`La variable de entorno ${key} debe ser texto.`);
   }
 
   return value.trim();
@@ -229,6 +251,48 @@ function readSwaggerPath(source: Record<string, unknown>): string {
   return normalizedPath;
 }
 
+function readCloudinaryConfiguration(source: Record<string, unknown>): {
+  cloudName: string;
+  apiKey: string;
+  apiSecret: string;
+} {
+  const cloudinaryUrl = readOptionalString(source, 'CLOUDINARY_URL');
+
+  if (cloudinaryUrl) {
+    try {
+      const parsedUrl = new URL(cloudinaryUrl);
+
+      if (parsedUrl.protocol !== 'cloudinary:') {
+        throw new Error();
+      }
+
+      const cloudName = parsedUrl.hostname;
+      const apiKey = decodeURIComponent(parsedUrl.username);
+      const apiSecret = decodeURIComponent(parsedUrl.password);
+
+      if (!cloudName || !apiKey || !apiSecret) {
+        throw new Error();
+      }
+
+      return {
+        cloudName,
+        apiKey,
+        apiSecret,
+      };
+    } catch {
+      throw new Error(
+        'La variable de entorno CLOUDINARY_URL debe tener el formato cloudinary://api_key:api_secret@cloud_name.',
+      );
+    }
+  }
+
+  return {
+    cloudName: readRequiredString(source, 'CLOUDINARY_CLOUD_NAME'),
+    apiKey: readRequiredString(source, 'CLOUDINARY_API_KEY'),
+    apiSecret: readRequiredString(source, 'CLOUDINARY_API_SECRET'),
+  };
+}
+
 function readEnvironment(source: Record<string, unknown>): NodeEnvironment {
   const value = source.NODE_ENV ?? 'development';
 
@@ -293,6 +357,8 @@ export function validateEnvironment(
     DEFAULT_JWT_REFRESH_EXPIRES_IN_SECONDS,
   );
 
+  readCloudinaryConfiguration(source);
+
   return source;
 }
 
@@ -339,5 +405,6 @@ export default (): ApplicationConfiguration => {
         DEFAULT_JWT_REFRESH_EXPIRES_IN_SECONDS,
       ),
     },
+    cloudinary: readCloudinaryConfiguration(process.env),
   };
 };
