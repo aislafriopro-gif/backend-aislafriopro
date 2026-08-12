@@ -51,7 +51,11 @@ export class Project {
   clientDisplayName!: string | null;
 
   @ManyToMany(() => Service)
-  @JoinTable({ name: 'project_services' })
+  @JoinTable({
+    name: 'project_services',
+    joinColumn: { name: 'projectId', referencedColumnName: 'id' },
+    inverseJoinColumn: { name: 'serviceId', referencedColumnName: 'id' },
+  })
   services!: Service[];
 
   @OneToMany(() => ProjectImage, (image) => image.project)
