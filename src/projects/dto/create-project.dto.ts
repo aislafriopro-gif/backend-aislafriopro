@@ -83,9 +83,12 @@ export class CreateProjectDto {
     maxLength: 255,
   })
   @IsOptional()
-  @IsString({ message: 'El nombre público del cliente debe ser una cadena de texto.' })
+  @IsString({
+    message: 'El nombre público del cliente debe ser una cadena de texto.',
+  })
   @MaxLength(255, {
-    message: 'El nombre público del cliente no puede superar los 255 caracteres.',
+    message:
+      'El nombre público del cliente no puede superar los 255 caracteres.',
   })
   clientDisplayName?: string;
 
