@@ -13,7 +13,7 @@ import { Service } from '../../services/entities/service.entity';
 import { QuoteRequestNote } from '../notes/quote-request-note.entity';
 
 export enum QuoteRequestStatus {
-  PENDING = 'PENDING',
+  NEW = 'NEW',
   IN_REVIEW = 'IN_REVIEW',
   RESPONDED = 'RESPONDED',
   CLOSED = 'CLOSED',
@@ -41,7 +41,7 @@ export class QuoteRequest {
   @Column({ type: 'text' })
   message!: string;
 
-  @Column({ type: 'enum', enum: QuoteRequestStatus, default: QuoteRequestStatus.PENDING })
+  @Column({ type: 'enum', enum: QuoteRequestStatus, default: QuoteRequestStatus.NEW })
   status!: QuoteRequestStatus;
 
   @OneToMany(() => QuoteRequestNote, (note) => note.quoteRequest, {

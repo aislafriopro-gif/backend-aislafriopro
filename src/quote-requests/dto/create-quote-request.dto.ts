@@ -1,23 +1,25 @@
 import { ApiProperty } from '@nestjs/swagger';
 import {
   IsEmail,
-  IsEnum,
   IsNotEmpty,
-  IsOptional,
   IsString,
   IsUUID,
   MaxLength,
+  MinLength,
 } from 'class-validator';
-import { QuoteRequestStatus } from '../entities/quote-request.entity';
 
 export class CreateQuoteRequestDto {
   @ApiProperty({
     description: 'Nombre de la persona que solicita la cotización',
     example: 'María Pérez',
+    minLength: 2,
     maxLength: 150,
   })
   @IsString({ message: 'El nombre debe ser una cadena de texto.' })
   @IsNotEmpty({ message: 'El nombre es obligatorio.' })
+  @MinLength(2, {
+    message: 'El nombre debe tener al menos 2 caracteres.',
+  })
   @MaxLength(150, {
     message: 'El nombre no puede superar los 150 caracteres.',
   })
@@ -34,10 +36,14 @@ export class CreateQuoteRequestDto {
   @ApiProperty({
     description: 'Teléfono de contacto de la solicitud',
     example: '+54 9 11 1234 5678',
+    minLength: 7,
     maxLength: 50,
   })
   @IsString({ message: 'El teléfono debe ser una cadena de texto.' })
   @IsNotEmpty({ message: 'El teléfono es obligatorio.' })
+  @MinLength(7, {
+    message: 'El teléfono debe tener al menos 7 caracteres.',
+  })
   @MaxLength(50, {
     message: 'El teléfono no puede superar los 50 caracteres.',
   })
@@ -55,11 +61,16 @@ export class CreateQuoteRequestDto {
   @ApiProperty({
     description: 'Mensaje o comentario del cliente sobre la solicitud',
     example: 'Necesitamos una cotización para la instalación de un aire acondicionado.',
+    minLength: 10,
+    maxLength: 1000,
   })
   @IsString({ message: 'El mensaje debe ser una cadena de texto.' })
   @IsNotEmpty({ message: 'El mensaje es obligatorio.' })
-  @MaxLength(5000, {
-    message: 'El mensaje no puede superar los 5000 caracteres.',
+  @MinLength(10, {
+    message: 'El mensaje debe tener al menos 10 caracteres.',
+  })
+  @MaxLength(1000, {
+    message: 'El mensaje no puede superar los 1000 caracteres.',
   })
   message!: string;
 }
