@@ -4,6 +4,7 @@ import {
   IsNotEmpty,
   IsString,
   IsUUID,
+  Matches,
   MaxLength,
   MinLength,
 } from 'class-validator';
@@ -28,9 +29,13 @@ export class CreateQuoteRequestDto {
   @ApiProperty({
     description: 'Email de contacto de la solicitud',
     example: 'maria.perez@example.com',
+    maxLength: 255,
   })
   @IsEmail({}, { message: 'El email debe tener un formato válido.' })
   @IsNotEmpty({ message: 'El email es obligatorio.' })
+  @MaxLength(255, {
+    message: 'El email no puede superar los 255 caracteres.',
+  })
   email!: string;
 
   @ApiProperty({
@@ -47,15 +52,25 @@ export class CreateQuoteRequestDto {
   @MaxLength(50, {
     message: 'El teléfono no puede superar los 50 caracteres.',
   })
+  @Matches(
+    /^(?:(?:\+?\d{1,3}[\s.-]?)?(?:\d{1,4}[\s.-]?)?(?:\(?(?:\d{2,4})\)?[\s.-]?)?\d{3,4}[\s.-]?\d{4})$/,
+    {
+      message: 'El teléfono debe tener un formato válido: solo números, espacios, guiones, paréntesis y opcional +.',
+    },
+  )
   phone!: string;
 
   @ApiProperty({
     description: 'ID del servicio solicitado',
     format: 'uuid',
     example: 'a1b2c3d4-e5f6-7890-abcd-ef1234567890',
+    maxLength: 36,
   })
   @IsUUID('4', { message: 'El servicio debe ser un UUID válido.' })
   @IsNotEmpty({ message: 'El servicio es obligatorio.' })
+  @MaxLength(36, {
+    message: 'El servicio debe tener un UUID válido.',
+  })
   serviceId!: string;
 
   @ApiProperty({
