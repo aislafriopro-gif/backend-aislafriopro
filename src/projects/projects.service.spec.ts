@@ -5,12 +5,17 @@ import {
 } from '@nestjs/common';
 import { Repository } from 'typeorm';
 import { PaginatedResponse } from '../common/pagination';
+import { Media } from '../media/entities/media.entity';
 import { Service } from '../services/entities/service.entity';
 import { User, UserStatus } from '../users/entities/user.entity';
 import { CreateProjectDto } from './dto/create-project.dto';
 import { FindProjectsQueryDto } from './dto/find-projects-query.dto';
 import { UpdateProjectDto } from './dto/update-project.dto';
 import { Project } from './entities/project.entity';
+import {
+  ProjectImage,
+  ProjectImageType,
+} from './media/entities/project-image.entity';
 import { ProjectsService } from './projects.service';
 
 const buildProject = (overrides: Partial<Project> = {}): Project => ({
@@ -63,6 +68,25 @@ const buildUser = (overrides: Partial<User> = {}): User => ({
   ...overrides,
 });
 
+const buildMedia = (overrides: Partial<Media> = {}): Media => ({
+  id: 'm1a2b3c4-d5e6-7890-abcd-ef1234567890',
+  publicId: 'aislafriopro/projects/test',
+  url: 'http://res.cloudinary.com/test/image/upload/test.jpg',
+  secureUrl: 'https://res.cloudinary.com/test/image/upload/test.jpg',
+  format: 'jpg',
+  resourceType: 'image',
+  width: 1920,
+  height: 1080,
+  bytes: 245000,
+  originalName: 'test.jpg',
+  uploadedById: null,
+  uploadedBy: null,
+  createdAt: new Date(),
+  updatedAt: new Date(),
+  deletedAt: null,
+  ...overrides,
+});
+
 const buildFindProjectsQuery = (
   overrides: Partial<FindProjectsQueryDto> = {},
 ): FindProjectsQueryDto => {
@@ -100,6 +124,15 @@ describe('ProjectsService', () => {
   let userRepository: {
     findOne: jest.Mock<Promise<User | null>, [unknown]>;
   };
+  let projectImageRepository: {
+    increment: jest.Mock<Promise<unknown>, [unknown, string, number]>;
+    create: jest.Mock<ProjectImage, [Partial<ProjectImage>]>;
+    save: jest.Mock<Promise<ProjectImage>, [ProjectImage]>;
+  };
+  let mediaRepository: {
+    findOne: jest.Mock<Promise<Media | null>, [unknown]>;
+    find: jest.Mock<Promise<Media[]>, [unknown]>;
+  };
 
   beforeEach(() => {
     jest.resetAllMocks();
@@ -134,10 +167,29 @@ describe('ProjectsService', () => {
         .mockResolvedValue(null),
     };
 
+    projectImageRepository = {
+      increment: jest
+        .fn<Promise<unknown>, [unknown, string, number]>()
+        .mockResolvedValue({ affected: 0 }),
+      create: jest.fn((input: Partial<ProjectImage>) =>
+        Object.assign(new ProjectImage(), input),
+      ),
+      save: jest.fn((image: ProjectImage) => Promise.resolve(image)),
+    };
+
+    mediaRepository = {
+      findOne: jest
+        .fn<Promise<Media | null>, [unknown]>()
+        .mockResolvedValue(null),
+      find: jest.fn<Promise<Media[]>, [unknown]>().mockResolvedValue([]),
+    };
+
     projectsService = new ProjectsService(
       projectRepository as unknown as Repository<Project>,
       serviceRepository as unknown as Repository<Service>,
       userRepository as unknown as Repository<User>,
+      projectImageRepository as unknown as Repository<ProjectImage>,
+      mediaRepository as unknown as Repository<Media>,
     );
   });
 
@@ -313,6 +365,89 @@ describe('ProjectsService', () => {
       await expect(projectsService.create(dto)).rejects.toThrow(
         ConflictException,
       );
+    });
+
+    it('debe crear un proyecto con las 3 imágenes adjuntas', async () => {
+      const dto: CreateProjectDto = {
+        title: 'Proyecto test',
+        slug: 'proyecto-test',
+        description: 'Descripción test',
+        coverMediaId: 'm1a2b3c4-d5e6-7890-abcd-ef1234567890',
+        beforeMediaId: 'm2a2b3c4-d5e6-7890-abcd-ef1234567890',
+        afterMediaId: 'm3a2b3c4-d5e6-7890-abcd-ef1234567890',
+      };
+      mediaRepository.find.mockResolvedValue([
+        buildMedia({ id: dto.coverMediaId }),
+        buildMedia({ id: dto.beforeMediaId }),
+        buildMedia({ id: dto.afterMediaId }),
+      ]);
+
+      const result = await projectsService.create(dto);
+
+      expect(projectRepository.create).toHaveBeenCalledWith({
+        title: dto.title,
+        slug: dto.slug,
+        description: dto.description,
+      });
+      expect(mediaRepository.find).toHaveBeenCalledWith(
+        expect.objectContaining({ withDeleted: true }),
+      );
+      expect(projectImageRepository.create).toHaveBeenCalledTimes(3);
+      expect(projectImageRepository.create).toHaveBeenCalledWith({
+        mediaId: dto.coverMediaId,
+        type: ProjectImageType.COVER,
+        displayOrder: 1,
+      });
+      expect(projectImageRepository.create).toHaveBeenCalledWith({
+        mediaId: dto.beforeMediaId,
+        type: ProjectImageType.BEFORE,
+        displayOrder: 1,
+      });
+      expect(projectImageRepository.create).toHaveBeenCalledWith({
+        mediaId: dto.afterMediaId,
+        type: ProjectImageType.AFTER,
+        displayOrder: 1,
+      });
+      expect(result.images).toHaveLength(3);
+      expect(projectRepository.save).toHaveBeenCalled();
+    });
+
+    it('debe lanzar NotFoundException si un media del create no existe', async () => {
+      const dto: CreateProjectDto = {
+        title: 'Proyecto test',
+        slug: 'proyecto-test',
+        description: 'Descripción test',
+        coverMediaId: 'no-existe',
+      };
+      mediaRepository.find.mockResolvedValue([]);
+
+      await expect(projectsService.create(dto)).rejects.toThrow(
+        NotFoundException,
+      );
+      await expect(projectsService.create(dto)).rejects.toThrow(
+        'Media not found: no-existe',
+      );
+      expect(projectRepository.save).not.toHaveBeenCalled();
+    });
+
+    it('debe lanzar BadRequestException si un media del create está soft deleted', async () => {
+      const dto: CreateProjectDto = {
+        title: 'Proyecto test',
+        slug: 'proyecto-test',
+        description: 'Descripción test',
+        beforeMediaId: 'm2a2b3c4-d5e6-7890-abcd-ef1234567890',
+      };
+      mediaRepository.find.mockResolvedValue([
+        buildMedia({ id: dto.beforeMediaId, deletedAt: new Date() }),
+      ]);
+
+      await expect(projectsService.create(dto)).rejects.toThrow(
+        BadRequestException,
+      );
+      await expect(projectsService.create(dto)).rejects.toThrow(
+        'Cannot associate deleted media',
+      );
+      expect(projectRepository.save).not.toHaveBeenCalled();
     });
   });
 
@@ -574,6 +709,71 @@ describe('ProjectsService', () => {
       await expect(projectsService.restore(project.id)).rejects.toThrow(
         ConflictException,
       );
+    });
+  });
+
+  describe('setProjectImage', () => {
+    it('debe crear la imagen con displayOrder 1 e incrementar las existentes del mismo tipo', async () => {
+      const project = buildProject();
+      const media = buildMedia();
+      projectRepository.findOne.mockResolvedValue(project);
+      mediaRepository.findOne.mockResolvedValue(media);
+
+      const result = await projectsService.setProjectImage(
+        project.id,
+        media.id,
+        ProjectImageType.COVER,
+      );
+
+      expect(projectImageRepository.increment).toHaveBeenCalledWith(
+        { projectId: project.id, type: ProjectImageType.COVER },
+        'displayOrder',
+        1,
+      );
+      expect(projectImageRepository.create).toHaveBeenCalledWith({
+        projectId: project.id,
+        mediaId: media.id,
+        type: ProjectImageType.COVER,
+        displayOrder: 1,
+      });
+      expect(projectImageRepository.save).toHaveBeenCalled();
+      expect(result).toBe(project);
+    });
+
+    it('debe lanzar NotFoundException si el proyecto no existe', async () => {
+      projectRepository.findOne.mockResolvedValue(null);
+
+      await expect(
+        projectsService.setProjectImage(
+          'no-existe',
+          'm1a2b3c4-d5e6-7890-abcd-ef1234567890',
+          ProjectImageType.BEFORE,
+        ),
+      ).rejects.toThrow(NotFoundException);
+      expect(mediaRepository.findOne).not.toHaveBeenCalled();
+      expect(projectImageRepository.save).not.toHaveBeenCalled();
+    });
+
+    it('debe lanzar NotFoundException si el media no existe', async () => {
+      const project = buildProject();
+      projectRepository.findOne.mockResolvedValue(project);
+      mediaRepository.findOne.mockResolvedValue(null);
+
+      await expect(
+        projectsService.setProjectImage(
+          project.id,
+          'no-existe',
+          ProjectImageType.AFTER,
+        ),
+      ).rejects.toThrow(NotFoundException);
+      await expect(
+        projectsService.setProjectImage(
+          project.id,
+          'no-existe',
+          ProjectImageType.AFTER,
+        ),
+      ).rejects.toThrow('Media with id "no-existe" not found');
+      expect(projectImageRepository.save).not.toHaveBeenCalled();
     });
   });
 });
