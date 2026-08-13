@@ -53,7 +53,7 @@ export class CreateQuoteRequestDto {
     message: 'El teléfono no puede superar los 50 caracteres.',
   })
   @Matches(
-    /^(?:(?:\+?\d{1,3}[\s.-]?)?(?:\d{1,4}[\s.-]?)?(?:\(?(?:\d{2,4})\)?[\s.-]?)?\d{3,4}[\s.-]?\d{4})$/,
+    /^\+?[0-9][0-9\s().-]{5,48}[0-9]$/,
     {
       message: 'El teléfono debe tener un formato válido: solo números, espacios, guiones, paréntesis y opcional +.',
     },

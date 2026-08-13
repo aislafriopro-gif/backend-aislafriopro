@@ -120,6 +120,42 @@ describe('QuoteRequestsService', () => {
   });
 
   describe('create', () => {
+    it('debe crear la solicitud asociando el servicio y persistirla', async () => {
+      const dto = buildValidDto();
+      const service = Object.assign(new Service(), {
+        id: dto.serviceId,
+        name: 'Aislación térmica',
+      });
+
+      serviceRepository.findOne.mockResolvedValue(service);
+
+      const result = await quoteRequestsService.create(dto);
+
+      expect(serviceRepository.findOne).toHaveBeenCalledWith({
+        where: { id: dto.serviceId, deletedAt: IsNull() },
+      });
+      expect(quoteRequestRepository.create).toHaveBeenCalledWith(
+        expect.objectContaining({
+          name: dto.name,
+          email: dto.email,
+          phone: dto.phone,
+          service,
+          message: dto.message,
+          status: 'NEW',
+        }),
+      );
+      expect(quoteRequestRepository.save).toHaveBeenCalledTimes(1);
+      expect(result).toEqual(
+        expect.objectContaining({
+          id: expect.any(String),
+          createdAt: expect.any(Date),
+          updatedAt: expect.any(Date),
+          status: 'NEW',
+          service,
+        }),
+      );
+    });
+
     it('debe rechazar si el serviceId es válido pero no existe en la base', async () => {
       const dto = buildValidDto();
       serviceRepository.findOne.mockResolvedValue(null);
