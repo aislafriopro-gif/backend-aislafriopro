@@ -1,7 +1,10 @@
 import { BadRequestException, Injectable, OnModuleInit } from '@nestjs/common';
 import { ConfigService } from '@nestjs/config';
+import { InjectRepository } from '@nestjs/typeorm';
 import { UploadApiResponse, v2 as cloudinary } from 'cloudinary';
+import { Repository } from 'typeorm';
 import { ApplicationConfiguration } from '../config/configuration';
+import { Media } from './entities/media.entity';
 
 const ALLOWED_IMAGE_MIME_TYPES = [
   'image/jpeg',
@@ -15,13 +18,18 @@ interface CloudinaryPingResponse {
 }
 
 export interface CloudinaryUploadResponse {
+  id: string;
   publicId: string;
   url: string;
   secureUrl: string;
   format: string;
-  width: number;
-  height: number;
+  resourceType: string;
+  width: number | null;
+  height: number | null;
   bytes: number;
+  originalName: string | null;
+  uploadedById: string | null;
+  createdAt: Date;
 }
 
 export interface UploadImageFile {
@@ -50,6 +58,8 @@ export class CloudinaryService implements OnModuleInit {
       ApplicationConfiguration,
       true
     >,
+    @InjectRepository(Media)
+    private readonly mediaRepository: Repository<Media>,
   ) {}
 
   onModuleInit(): void {
@@ -72,20 +82,48 @@ export class CloudinaryService implements OnModuleInit {
     return response;
   }
 
-  async uploadImage(file: UploadImageFile): Promise<CloudinaryUploadResponse> {
+  async uploadImage(
+    file: UploadImageFile,
+    uploadedById?: string | null,
+  ): Promise<CloudinaryUploadResponse> {
     this.validateImageFile(file);
 
     const uploadResult = await this.uploadBuffer(file.buffer);
 
-    return {
-      publicId: uploadResult.public_id,
-      url: uploadResult.url,
-      secureUrl: uploadResult.secure_url,
-      format: uploadResult.format,
-      width: uploadResult.width,
-      height: uploadResult.height,
-      bytes: uploadResult.bytes,
-    };
+    try {
+      const media = this.mediaRepository.create({
+        publicId: uploadResult.public_id,
+        url: uploadResult.url,
+        secureUrl: uploadResult.secure_url,
+        format: uploadResult.format,
+        resourceType: uploadResult.resource_type,
+        width: uploadResult.width ?? null,
+        height: uploadResult.height ?? null,
+        bytes: uploadResult.bytes,
+        originalName: file.originalname ?? null,
+        uploadedById: uploadedById ?? null,
+      });
+
+      const savedMedia = await this.mediaRepository.save(media);
+
+      return {
+        id: savedMedia.id,
+        publicId: savedMedia.publicId,
+        url: savedMedia.url,
+        secureUrl: savedMedia.secureUrl,
+        format: savedMedia.format,
+        resourceType: savedMedia.resourceType,
+        width: savedMedia.width,
+        height: savedMedia.height,
+        bytes: savedMedia.bytes,
+        originalName: savedMedia.originalName,
+        uploadedById: savedMedia.uploadedById,
+        createdAt: savedMedia.createdAt,
+      };
+    } catch (error) {
+      await cloudinary.uploader.destroy(uploadResult.public_id);
+      throw error;
+    }
   }
 
   private validateImageFile(file: UploadImageFile): void {

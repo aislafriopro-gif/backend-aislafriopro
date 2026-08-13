@@ -16,6 +16,7 @@ import { HealthModule } from './health/health.module';
 import { FaqsModule } from './faqs/faqs.module';
 import { SiteSettingsModule } from './site-settings/site-settings.module';
 import { CloudinaryModule } from './media/cloudinary.module';
+import { ProjectsModule } from './projects/projects.module';
 
 @Module({
   imports: [
@@ -59,6 +60,7 @@ import { CloudinaryModule } from './media/cloudinary.module';
     FaqsModule,
     SiteSettingsModule,
     CloudinaryModule,
+    ProjectsModule,
   ],
   controllers: [AppController],
   providers: [AppService],
