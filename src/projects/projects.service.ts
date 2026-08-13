@@ -10,12 +10,17 @@ import {
   PaginatedResponse,
   buildPaginatedResponse,
 } from '../common/pagination';
+import { Media } from '../media/entities/media.entity';
 import { Service } from '../services/entities/service.entity';
 import { User, UserStatus } from '../users/entities/user.entity';
 import { CreateProjectDto } from './dto/create-project.dto';
 import { FindProjectsQueryDto } from './dto/find-projects-query.dto';
 import { UpdateProjectDto } from './dto/update-project.dto';
 import { Project } from './entities/project.entity';
+import {
+  ProjectImage,
+  ProjectImageType,
+} from './media/entities/project-image.entity';
 
 @Injectable()
 export class ProjectsService {
@@ -26,12 +31,19 @@ export class ProjectsService {
     private readonly serviceRepository: Repository<Service>,
     @InjectRepository(User)
     private readonly userRepository: Repository<User>,
+    @InjectRepository(ProjectImage)
+    private readonly projectImageRepository: Repository<ProjectImage>,
+    @InjectRepository(Media)
+    private readonly mediaRepository: Repository<Media>,
   ) {}
 
   async create(createProjectDto: CreateProjectDto): Promise<Project> {
     await this.ensureSlugAvailable(createProjectDto.slug);
 
-    const project = this.projectRepository.create(createProjectDto);
+    const { coverMediaId, beforeMediaId, afterMediaId, ...projectData } =
+      createProjectDto;
+
+    const project = this.projectRepository.create(projectData);
 
     if (createProjectDto.clientId) {
       await this.validateClient(createProjectDto.clientId);
@@ -40,6 +52,31 @@ export class ProjectsService {
     if (createProjectDto.serviceIds?.length) {
       project.services = await this.validateServices(
         createProjectDto.serviceIds,
+      );
+    }
+
+    const imageInputs: Array<{ type: ProjectImageType; mediaId: string }> = [];
+    if (coverMediaId) {
+      imageInputs.push({ type: ProjectImageType.COVER, mediaId: coverMediaId });
+    }
+    if (beforeMediaId) {
+      imageInputs.push({
+        type: ProjectImageType.BEFORE,
+        mediaId: beforeMediaId,
+      });
+    }
+    if (afterMediaId) {
+      imageInputs.push({ type: ProjectImageType.AFTER, mediaId: afterMediaId });
+    }
+
+    if (imageInputs.length > 0) {
+      await this.validateMedia(imageInputs.map((input) => input.mediaId));
+      project.images = imageInputs.map((input) =>
+        this.projectImageRepository.create({
+          mediaId: input.mediaId,
+          type: input.type,
+          displayOrder: 1,
+        }),
       );
     }
 
@@ -158,6 +195,44 @@ export class ProjectsService {
     return this.projectRepository.save(project);
   }
 
+  async setProjectImage(
+    projectId: string,
+    mediaId: string,
+    type: ProjectImageType,
+  ): Promise<Project> {
+    const project = await this.projectRepository.findOne({
+      where: { id: projectId, deletedAt: IsNull() },
+    });
+
+    if (!project) {
+      throw new NotFoundException(`Project with id "${projectId}" not found`);
+    }
+
+    const media = await this.mediaRepository.findOne({
+      where: { id: mediaId, deletedAt: IsNull() },
+    });
+
+    if (!media) {
+      throw new NotFoundException(`Media with id "${mediaId}" not found`);
+    }
+
+    await this.projectImageRepository.increment(
+      { projectId, type },
+      'displayOrder',
+      1,
+    );
+
+    const image = this.projectImageRepository.create({
+      projectId,
+      mediaId,
+      type,
+      displayOrder: 1,
+    });
+    await this.projectImageRepository.save(image);
+
+    return this.findOne(projectId);
+  }
+
   private buildWhereClause(
     query: FindProjectsQueryDto,
     options: { activeOnly: boolean },
@@ -233,6 +308,31 @@ export class ProjectsService {
     }
 
     return services;
+  }
+
+  private async validateMedia(mediaIds: string[]): Promise<void> {
+    const media = await this.mediaRepository.find({
+      where: { id: In(mediaIds) },
+      withDeleted: true,
+    });
+
+    const foundIds = new Set(media.map((item) => item.id));
+    const missingIds = mediaIds.filter((id) => !foundIds.has(id));
+
+    if (missingIds.length > 0) {
+      throw new NotFoundException(`Media not found: ${missingIds.join(', ')}`);
+    }
+
+    const deletedMedia = media.filter(
+      (item) => item.deletedAt !== null && item.deletedAt !== undefined,
+    );
+
+    if (deletedMedia.length > 0) {
+      const details = deletedMedia.map((item) => item.id).join(', ');
+      throw new BadRequestException(
+        `Cannot associate deleted media: ${details}`,
+      );
+    }
   }
 
   private async validateClient(clientId: string): Promise<void> {

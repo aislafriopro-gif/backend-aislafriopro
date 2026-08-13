@@ -105,4 +105,34 @@ export class CreateProjectDto {
     message: 'Cada servicio debe ser un UUID válido.',
   })
   serviceIds?: string[];
+
+  @ApiProperty({
+    description:
+      'ID del media a usar como imagen de portada (queda primera en su galería)',
+    example: 'a0eebc99-9c0b-4ef8-bb6d-6bb9bd380a11',
+    required: false,
+  })
+  @IsOptional()
+  @IsUUID('4', { message: 'La imagen de portada debe ser un UUID válido.' })
+  coverMediaId?: string;
+
+  @ApiProperty({
+    description:
+      'ID del media a usar como imagen "antes" (queda primera en su galería)',
+    example: 'a0eebc99-9c0b-4ef8-bb6d-6bb9bd380a11',
+    required: false,
+  })
+  @IsOptional()
+  @IsUUID('4', { message: 'La imagen "antes" debe ser un UUID válido.' })
+  beforeMediaId?: string;
+
+  @ApiProperty({
+    description:
+      'ID del media a usar como imagen "después" (queda primera en su galería)',
+    example: 'a0eebc99-9c0b-4ef8-bb6d-6bb9bd380a11',
+    required: false,
+  })
+  @IsOptional()
+  @IsUUID('4', { message: 'La imagen "después" debe ser un UUID válido.' })
+  afterMediaId?: string;
 }

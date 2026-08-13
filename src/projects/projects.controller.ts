@@ -17,8 +17,10 @@ import { PaginatedResponse } from '../common/pagination';
 import { RoleName } from '../roles/entities/roles.entity';
 import { CreateProjectDto } from './dto/create-project.dto';
 import { FindProjectsQueryDto } from './dto/find-projects-query.dto';
+import { SetProjectImageDto } from './dto/set-project-image.dto';
 import { UpdateProjectDto } from './dto/update-project.dto';
 import { Project } from './entities/project.entity';
+import { ProjectImageType } from './media/entities/project-image.entity';
 import { ProjectsService } from './projects.service';
 
 @ApiTags('Projects')
@@ -71,6 +73,60 @@ export class ProjectsController {
     @Body() updateProjectDto: UpdateProjectDto,
   ): Promise<Project> {
     return this.projectsService.update(id, updateProjectDto);
+  }
+
+  @Patch(':id/cover-image')
+  @Auth(RoleName.ADMIN)
+  @ApiOperation({
+    summary:
+      'Subir imagen de portada (queda primera en la galería de portadas) (ADMIN)',
+  })
+  @ApiParam({ name: 'id', type: 'string', format: 'uuid' })
+  async setCoverImage(
+    @Param('id', new ParseUUIDPipe()) id: string,
+    @Body() setProjectImageDto: SetProjectImageDto,
+  ): Promise<Project> {
+    return this.projectsService.setProjectImage(
+      id,
+      setProjectImageDto.mediaId,
+      ProjectImageType.COVER,
+    );
+  }
+
+  @Patch(':id/before-image')
+  @Auth(RoleName.ADMIN)
+  @ApiOperation({
+    summary:
+      'Subir imagen "antes" (queda primera en la galería de antes) (ADMIN)',
+  })
+  @ApiParam({ name: 'id', type: 'string', format: 'uuid' })
+  async setBeforeImage(
+    @Param('id', new ParseUUIDPipe()) id: string,
+    @Body() setProjectImageDto: SetProjectImageDto,
+  ): Promise<Project> {
+    return this.projectsService.setProjectImage(
+      id,
+      setProjectImageDto.mediaId,
+      ProjectImageType.BEFORE,
+    );
+  }
+
+  @Patch(':id/after-image')
+  @Auth(RoleName.ADMIN)
+  @ApiOperation({
+    summary:
+      'Subir imagen "después" (queda primera en la galería de después) (ADMIN)',
+  })
+  @ApiParam({ name: 'id', type: 'string', format: 'uuid' })
+  async setAfterImage(
+    @Param('id', new ParseUUIDPipe()) id: string,
+    @Body() setProjectImageDto: SetProjectImageDto,
+  ): Promise<Project> {
+    return this.projectsService.setProjectImage(
+      id,
+      setProjectImageDto.mediaId,
+      ProjectImageType.AFTER,
+    );
   }
 
   @Delete(':id')

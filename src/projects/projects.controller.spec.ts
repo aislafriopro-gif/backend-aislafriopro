@@ -1,8 +1,10 @@
 import { PaginatedResponse } from '../common/pagination';
 import { CreateProjectDto } from './dto/create-project.dto';
 import { FindProjectsQueryDto } from './dto/find-projects-query.dto';
+import { SetProjectImageDto } from './dto/set-project-image.dto';
 import { UpdateProjectDto } from './dto/update-project.dto';
 import { Project } from './entities/project.entity';
+import { ProjectImageType } from './media/entities/project-image.entity';
 import { ProjectsController } from './projects.controller';
 import { ProjectsService } from './projects.service';
 
@@ -56,6 +58,9 @@ describe('ProjectsController', () => {
   let updateMock: jest.MockedFunction<ProjectsService['update']>;
   let removeMock: jest.MockedFunction<ProjectsService['remove']>;
   let restoreMock: jest.MockedFunction<ProjectsService['restore']>;
+  let setProjectImageMock: jest.MockedFunction<
+    ProjectsService['setProjectImage']
+  >;
 
   beforeEach(() => {
     createMock = jest.fn();
@@ -65,6 +70,7 @@ describe('ProjectsController', () => {
     updateMock = jest.fn();
     removeMock = jest.fn();
     restoreMock = jest.fn();
+    setProjectImageMock = jest.fn();
 
     const projectsService = {
       create: createMock,
@@ -74,6 +80,7 @@ describe('ProjectsController', () => {
       update: updateMock,
       remove: removeMock,
       restore: restoreMock,
+      setProjectImage: setProjectImageMock,
     } as unknown as ProjectsService;
 
     projectsController = new ProjectsController(projectsService);
@@ -172,6 +179,54 @@ describe('ProjectsController', () => {
 
       expect(result).toBe(project);
       expect(restoreMock).toHaveBeenCalledWith(project.id);
+    });
+  });
+
+  describe('setProjectImage endpoints', () => {
+    const dto: SetProjectImageDto = {
+      mediaId: 'm1a2b3c4-d5e6-7890-abcd-ef1234567890',
+    };
+
+    it('cover-image debe delegar con el tipo COVER', async () => {
+      const project = buildProject();
+      setProjectImageMock.mockResolvedValue(project);
+
+      const result = await projectsController.setCoverImage(project.id, dto);
+
+      expect(result).toBe(project);
+      expect(setProjectImageMock).toHaveBeenCalledWith(
+        project.id,
+        dto.mediaId,
+        ProjectImageType.COVER,
+      );
+    });
+
+    it('before-image debe delegar con el tipo BEFORE', async () => {
+      const project = buildProject();
+      setProjectImageMock.mockResolvedValue(project);
+
+      const result = await projectsController.setBeforeImage(project.id, dto);
+
+      expect(result).toBe(project);
+      expect(setProjectImageMock).toHaveBeenCalledWith(
+        project.id,
+        dto.mediaId,
+        ProjectImageType.BEFORE,
+      );
+    });
+
+    it('after-image debe delegar con el tipo AFTER', async () => {
+      const project = buildProject();
+      setProjectImageMock.mockResolvedValue(project);
+
+      const result = await projectsController.setAfterImage(project.id, dto);
+
+      expect(result).toBe(project);
+      expect(setProjectImageMock).toHaveBeenCalledWith(
+        project.id,
+        dto.mediaId,
+        ProjectImageType.AFTER,
+      );
     });
   });
 });
