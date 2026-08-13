@@ -10,11 +10,17 @@ import {
   PaginatedResponse,
   buildPaginatedResponse,
 } from '../common/pagination';
+import {
+  CloudinaryService,
+  UploadImageFile,
+} from '../media/cloudinary.service';
 import { Media } from '../media/entities/media.entity';
 import { Service } from '../services/entities/service.entity';
 import { User, UserStatus } from '../users/entities/user.entity';
+import 'multer';
 import { CreateProjectDto } from './dto/create-project.dto';
 import { FindProjectsQueryDto } from './dto/find-projects-query.dto';
+import { ProjectPublicResponseDto } from './dto/project-public-response.dto';
 import { UpdateProjectDto } from './dto/update-project.dto';
 import { Project } from './entities/project.entity';
 import {
@@ -35,19 +41,30 @@ export class ProjectsService {
     private readonly projectImageRepository: Repository<ProjectImage>,
     @InjectRepository(Media)
     private readonly mediaRepository: Repository<Media>,
+    private readonly cloudinaryService: CloudinaryService,
   ) {}
 
-  async create(createProjectDto: CreateProjectDto): Promise<Project> {
+  async create(
+    createProjectDto: CreateProjectDto,
+    files?: {
+      coverFile?: Express.Multer.File[];
+      beforeFile?: Express.Multer.File[];
+      afterFile?: Express.Multer.File[];
+    },
+    uploadedById?: string | null,
+  ): Promise<Project> {
     await this.ensureSlugAvailable(createProjectDto.slug);
-
-    const { coverMediaId, beforeMediaId, afterMediaId, ...projectData } =
-      createProjectDto;
-
-    const project = this.projectRepository.create(projectData);
 
     if (createProjectDto.clientId) {
       await this.validateClient(createProjectDto.clientId);
     }
+
+    const projectData = { ...createProjectDto };
+    delete projectData.coverFile;
+    delete projectData.beforeFile;
+    delete projectData.afterFile;
+
+    const project = this.projectRepository.create(projectData);
 
     if (createProjectDto.serviceIds?.length) {
       project.services = await this.validateServices(
@@ -55,80 +72,161 @@ export class ProjectsService {
       );
     }
 
-    const imageInputs: Array<{ type: ProjectImageType; mediaId: string }> = [];
-    if (coverMediaId) {
-      imageInputs.push({ type: ProjectImageType.COVER, mediaId: coverMediaId });
-    }
-    if (beforeMediaId) {
-      imageInputs.push({
-        type: ProjectImageType.BEFORE,
-        mediaId: beforeMediaId,
-      });
-    }
-    if (afterMediaId) {
-      imageInputs.push({ type: ProjectImageType.AFTER, mediaId: afterMediaId });
+    const savedProject = await this.projectRepository.save(project);
+
+    if (files) {
+      const imageInputs: Array<{
+        type: ProjectImageType;
+        file: Express.Multer.File;
+      }> = [];
+
+      const entries: Array<{
+        type: ProjectImageType;
+        fileArr?: Express.Multer.File[];
+      }> = [
+        { type: ProjectImageType.COVER, fileArr: files.coverFile },
+        { type: ProjectImageType.BEFORE, fileArr: files.beforeFile },
+        { type: ProjectImageType.AFTER, fileArr: files.afterFile },
+      ];
+
+      for (const entry of entries) {
+        const file = entry.fileArr?.[0];
+        if (file) {
+          this.validateImageFile(file);
+          imageInputs.push({ type: entry.type, file });
+        }
+      }
+
+      if (imageInputs.length > 0) {
+        await this.attachUploadedImages(
+          savedProject.id,
+          imageInputs,
+          uploadedById,
+        );
+      }
     }
 
-    if (imageInputs.length > 0) {
-      await this.validateMedia(imageInputs.map((input) => input.mediaId));
-      project.images = imageInputs.map((input) =>
-        this.projectImageRepository.create({
-          mediaId: input.mediaId,
-          type: input.type,
-          displayOrder: 1,
-        }),
+    return this.projectRepository.findOneOrFail({
+      where: { id: savedProject.id },
+      relations: ['images', 'images.media', 'services', 'client'],
+    });
+  }
+
+  private validateImageFile(file: Express.Multer.File): void {
+    const MAX_SIZE = 5 * 1024 * 1024;
+    const ALLOWED_TYPES = /^image\/(jpeg|png|webp|gif)$/;
+
+    if (file.size > MAX_SIZE) {
+      throw new BadRequestException(
+        `El archivo "${file.originalname}" supera el tamaño máximo de 5 MB.`,
       );
     }
 
-    return this.projectRepository.save(project);
+    if (!ALLOWED_TYPES.test(file.mimetype)) {
+      throw new BadRequestException(
+        `El archivo "${file.originalname}" tiene un tipo no permitido (${file.mimetype}). Se permiten: jpeg, png, webp, gif.`,
+      );
+    }
+  }
+
+  private async attachUploadedImages(
+    projectId: string,
+    imageInputs: Array<{
+      type: ProjectImageType;
+      file: Express.Multer.File;
+    }>,
+    uploadedById?: string | null,
+  ): Promise<void> {
+    for (const input of imageInputs) {
+      try {
+        const uploadResult = await this.cloudinaryService.uploadImage(
+          {
+            buffer: input.file.buffer,
+            mimetype: input.file.mimetype,
+            size: input.file.size,
+            originalname: input.file.originalname,
+          },
+          uploadedById,
+        );
+
+        await this.projectImageRepository.save(
+          this.projectImageRepository.create({
+            projectId,
+            mediaId: uploadResult.id,
+            type: input.type,
+            displayOrder: 1,
+          }),
+        );
+      } catch (error) {
+        console.error(
+          `Error uploading ${input.type} image for project ${projectId}. El proyecto se creó sin esta imagen.`,
+          error,
+        );
+      }
+    }
   }
 
   async findAll(
     query: FindProjectsQueryDto,
-  ): Promise<PaginatedResponse<Project>> {
+  ): Promise<PaginatedResponse<ProjectPublicResponseDto>> {
     const where: FindOptionsWhere<Project> | FindOptionsWhere<Project>[] =
       this.buildWhereClause(query, { activeOnly: true });
 
     const [data, total] = await this.projectRepository.findAndCount({
       where,
-      relations: ['images', 'services', 'client'],
+      relations: ['images', 'images.media', 'services', 'client'],
       order: { createdAt: 'DESC' },
       skip: query.offset,
       take: query.limit,
     });
 
-    return buildPaginatedResponse(data, total, query.page, query.limit);
+    const mapped = data.map((project) => this.mapToPublicResponse(project));
+    return buildPaginatedResponse(mapped, total, query.page, query.limit);
   }
 
   async findAllAdmin(
     query: FindProjectsQueryDto,
-  ): Promise<PaginatedResponse<Project>> {
+  ): Promise<PaginatedResponse<ProjectPublicResponseDto>> {
     const where: FindOptionsWhere<Project> | FindOptionsWhere<Project>[] =
       this.buildWhereClause(query, { activeOnly: false });
 
     const [data, total] = await this.projectRepository.findAndCount({
       where,
       withDeleted: true,
-      relations: ['images', 'services', 'client'],
+      relations: ['images', 'images.media', 'services', 'client'],
       order: { createdAt: 'DESC' },
       skip: query.offset,
       take: query.limit,
     });
 
-    return buildPaginatedResponse(data, total, query.page, query.limit);
+    const mapped = data.map((project) => this.mapToPublicResponse(project));
+    return buildPaginatedResponse(mapped, total, query.page, query.limit);
   }
 
-  async findOne(id: string): Promise<Project> {
+  async findOne(id: string): Promise<ProjectPublicResponseDto> {
     const project = await this.projectRepository.findOne({
       where: { id, deletedAt: IsNull() },
-      relations: ['images', 'services', 'client'],
+      relations: ['images', 'images.media', 'services', 'client'],
     });
 
     if (!project) {
       throw new NotFoundException(`Project with id "${id}" not found`);
     }
 
-    return project;
+    return this.mapToPublicResponse(project);
+  }
+
+  async findOneBySlug(slug: string): Promise<ProjectPublicResponseDto> {
+    const project = await this.projectRepository.findOne({
+      where: { slug, deletedAt: IsNull() },
+      relations: ['images', 'images.media', 'services', 'client'],
+    });
+
+    if (!project) {
+      throw new NotFoundException(`Project with slug "${slug}" not found`);
+    }
+
+    return this.mapToPublicResponse(project);
   }
 
   async update(
@@ -199,7 +297,7 @@ export class ProjectsService {
     projectId: string,
     mediaId: string,
     type: ProjectImageType,
-  ): Promise<Project> {
+  ): Promise<ProjectPublicResponseDto> {
     const project = await this.projectRepository.findOne({
       where: { id: projectId, deletedAt: IsNull() },
     });
@@ -231,6 +329,19 @@ export class ProjectsService {
     await this.projectImageRepository.save(image);
 
     return this.findOne(projectId);
+  }
+
+  async uploadProjectImage(
+    projectId: string,
+    file: UploadImageFile,
+    type: ProjectImageType,
+    uploadedById?: string | null,
+  ): Promise<ProjectPublicResponseDto> {
+    const uploadResult = await this.cloudinaryService.uploadImage(
+      file,
+      uploadedById,
+    );
+    return this.setProjectImage(projectId, uploadResult.id, type);
   }
 
   private buildWhereClause(
@@ -356,5 +467,32 @@ export class ProjectsService {
         `Client with id "${clientId}" is not active (status: ${user.status})`,
       );
     }
+  }
+
+  private mapToPublicResponse(project: Project): ProjectPublicResponseDto {
+    return {
+      id: project.id,
+      title: project.title,
+      slug: project.slug,
+      description: project.description,
+      location: project.location,
+      completionDate: project.completionDate,
+      clientDisplayName: project.clientDisplayName,
+      services: project.services,
+      coverImage:
+        project.images?.find(
+          (i) => i.type === ProjectImageType.COVER && i.displayOrder === 1,
+        )?.media ?? null,
+      beforeImage:
+        project.images?.find(
+          (i) => i.type === ProjectImageType.BEFORE && i.displayOrder === 1,
+        )?.media ?? null,
+      afterImage:
+        project.images?.find(
+          (i) => i.type === ProjectImageType.AFTER && i.displayOrder === 1,
+        )?.media ?? null,
+      createdAt: project.createdAt,
+      updatedAt: project.updatedAt,
+    };
   }
 }

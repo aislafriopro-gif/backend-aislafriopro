@@ -5,6 +5,7 @@ import {
 } from '@nestjs/common';
 import { Repository } from 'typeorm';
 import { PaginatedResponse } from '../common/pagination';
+import { CloudinaryService } from '../media/cloudinary.service';
 import { Media } from '../media/entities/media.entity';
 import { Service } from '../services/entities/service.entity';
 import { User, UserStatus } from '../users/entities/user.entity';
@@ -133,6 +134,12 @@ describe('ProjectsService', () => {
     findOne: jest.Mock<Promise<Media | null>, [unknown]>;
     find: jest.Mock<Promise<Media[]>, [unknown]>;
   };
+  let cloudinaryService: {
+    uploadImage: jest.Mock<
+      Promise<ReturnType<CloudinaryService['uploadImage']>>,
+      [Parameters<CloudinaryService['uploadImage']>[0], (string | null)?]
+    >;
+  };
 
   beforeEach(() => {
     jest.resetAllMocks();
@@ -184,12 +191,17 @@ describe('ProjectsService', () => {
       find: jest.fn<Promise<Media[]>, [unknown]>().mockResolvedValue([]),
     };
 
+    cloudinaryService = {
+      uploadImage: jest.fn().mockResolvedValue(buildMedia()),
+    };
+
     projectsService = new ProjectsService(
       projectRepository as unknown as Repository<Project>,
       serviceRepository as unknown as Repository<Service>,
       userRepository as unknown as Repository<User>,
       projectImageRepository as unknown as Repository<ProjectImage>,
       mediaRepository as unknown as Repository<Media>,
+      cloudinaryService as unknown as CloudinaryService,
     );
   });
 

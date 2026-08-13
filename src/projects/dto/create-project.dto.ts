@@ -1,4 +1,5 @@
 import { ApiProperty } from '@nestjs/swagger';
+import { Transform } from 'class-transformer';
 import {
   IsArray,
   IsDateString,
@@ -93,12 +94,39 @@ export class CreateProjectDto {
   clientDisplayName?: string;
 
   @ApiProperty({
-    description: 'IDs de los servicios vendidos en el proyecto',
+    description:
+      'IDs de los servicios vendidos en el proyecto (enviar como JSON array serializado en multipart/form-data, ej: ["uuid1","uuid2"])',
     example: ['a0eebc99-9c0b-4ef8-bb6d-6bb9bd380a11'],
     required: false,
     isArray: true,
+    type: String,
   })
   @IsOptional()
+  @Transform(({ value }: { value: unknown }): unknown => {
+    if (Array.isArray(value)) {
+      return value;
+    }
+
+    if (typeof value !== 'string') {
+      return value;
+    }
+
+    const trimmed = value.trim();
+    if (!trimmed) {
+      return undefined;
+    }
+
+    if (trimmed.startsWith('[')) {
+      try {
+        const parsed: unknown = JSON.parse(trimmed);
+        return Array.isArray(parsed) ? parsed : [trimmed];
+      } catch {
+        return [trimmed];
+      }
+    }
+
+    return [trimmed];
+  })
   @IsArray({ message: 'Los servicios deben enviarse como un arreglo.' })
   @IsUUID('4', {
     each: true,
@@ -108,31 +136,31 @@ export class CreateProjectDto {
 
   @ApiProperty({
     description:
-      'ID del media a usar como imagen de portada (queda primera en su galería)',
-    example: 'a0eebc99-9c0b-4ef8-bb6d-6bb9bd380a11',
+      'Imagen de portada (multipart, opcional). Los clientes pueden enviar el campo vacío; se ignora.',
+    type: 'string',
+    format: 'binary',
     required: false,
   })
   @IsOptional()
-  @IsUUID('4', { message: 'La imagen de portada debe ser un UUID válido.' })
-  coverMediaId?: string;
+  coverFile?: string;
 
   @ApiProperty({
     description:
-      'ID del media a usar como imagen "antes" (queda primera en su galería)',
-    example: 'a0eebc99-9c0b-4ef8-bb6d-6bb9bd380a11',
+      'Imagen "antes" (multipart, opcional). Los clientes pueden enviar el campo vacío; se ignora.',
+    type: 'string',
+    format: 'binary',
     required: false,
   })
   @IsOptional()
-  @IsUUID('4', { message: 'La imagen "antes" debe ser un UUID válido.' })
-  beforeMediaId?: string;
+  beforeFile?: string;
 
   @ApiProperty({
     description:
-      'ID del media a usar como imagen "después" (queda primera en su galería)',
-    example: 'a0eebc99-9c0b-4ef8-bb6d-6bb9bd380a11',
+      'Imagen "después" (multipart, opcional). Los clientes pueden enviar el campo vacío; se ignora.',
+    type: 'string',
+    format: 'binary',
     required: false,
   })
   @IsOptional()
-  @IsUUID('4', { message: 'La imagen "después" debe ser un UUID válido.' })
-  afterMediaId?: string;
+  afterFile?: string;
 }
