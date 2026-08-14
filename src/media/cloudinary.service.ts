@@ -143,7 +143,6 @@ export class CloudinaryService implements OnModuleInit {
     const media = await this.mediaRepository.findOne({
       where: { publicId },
     });
-
     if (!media) {
       throw new NotFoundException('La imagen no existe.');
     }
@@ -151,7 +150,6 @@ export class CloudinaryService implements OnModuleInit {
     const destroyResult = (await cloudinary.uploader.destroy(publicId, {
       resource_type: media.resourceType,
     })) as CloudinaryDestroyResponse;
-
     if (destroyResult.result === 'not found') {
       throw new NotFoundException('La imagen no existe en Cloudinary.');
     }
