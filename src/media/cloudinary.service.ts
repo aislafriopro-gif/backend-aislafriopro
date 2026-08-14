@@ -1,4 +1,9 @@
-import { BadRequestException, Injectable, OnModuleInit } from '@nestjs/common';
+import {
+  BadRequestException,
+  Injectable,
+  OnModuleInit,
+  NotFoundException,
+} from '@nestjs/common';
 import { ConfigService } from '@nestjs/config';
 import { InjectRepository } from '@nestjs/typeorm';
 import { UploadApiResponse, v2 as cloudinary } from 'cloudinary';
@@ -37,6 +42,10 @@ export interface UploadImageFile {
   mimetype: string;
   size: number;
   originalname?: string;
+}
+
+interface CloudinaryDestroyResponse {
+  result: string;
 }
 
 function toError(error: unknown): Error {
@@ -124,6 +133,30 @@ export class CloudinaryService implements OnModuleInit {
       await cloudinary.uploader.destroy(uploadResult.public_id);
       throw error;
     }
+  }
+
+  async deleteImage(publicId: string): Promise<void> {
+    if (!publicId?.trim()) {
+      throw new BadRequestException('El publicId de la imagen es obligatorio.');
+    }
+
+    const media = await this.mediaRepository.findOne({
+      where: { publicId },
+    });
+
+    if (!media) {
+      throw new NotFoundException('La imagen no existe.');
+    }
+
+    const destroyResult = (await cloudinary.uploader.destroy(publicId, {
+      resource_type: media.resourceType,
+    })) as CloudinaryDestroyResponse;
+
+    if (destroyResult.result === 'not found') {
+      throw new NotFoundException('La imagen no existe en Cloudinary.');
+    }
+
+    await this.mediaRepository.softDelete(media.id);
   }
 
   private validateImageFile(file: UploadImageFile): void {
