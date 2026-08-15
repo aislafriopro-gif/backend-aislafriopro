@@ -9,6 +9,7 @@ import { CloudinaryService } from '../media/cloudinary.service';
 import { Media } from '../media/entities/media.entity';
 import { Service } from '../services/entities/service.entity';
 import { User, UserStatus } from '../users/entities/user.entity';
+import { RoleName } from '../roles/entities/roles.entity';
 import { CreateProjectDto } from './dto/create-project.dto';
 import { FindProjectsQueryDto } from './dto/find-projects-query.dto';
 import { UpdateProjectDto } from './dto/update-project.dto';
@@ -60,7 +61,7 @@ const buildUser = (overrides: Partial<User> = {}): User => ({
   phone: null,
   status: UserStatus.ACTIVE,
   lastLoginAt: null,
-  role: {} as User['role'],
+  role: { name: RoleName.CLIENT } as User['role'],
   sessions: [],
   auditLogs: [],
   createdAt: new Date(),

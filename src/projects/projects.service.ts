@@ -27,6 +27,7 @@ import {
   ProjectImage,
   ProjectImageType,
 } from './media/entities/project-image.entity';
+import { RoleName } from '../roles/entities/roles.entity';
 
 @Injectable()
 export class ProjectsService {
@@ -465,6 +466,12 @@ export class ProjectsService {
     if (user.status !== UserStatus.ACTIVE) {
       throw new BadRequestException(
         `Client with id "${clientId}" is not active (status: ${user.status})`,
+      );
+    }
+
+    if (user.role?.name !== RoleName.CLIENT) {
+      throw new BadRequestException(
+        `User with id "${clientId}" is not a client (role: ${user.role?.name})`,
       );
     }
   }
