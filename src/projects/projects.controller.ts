@@ -84,7 +84,7 @@ export class ProjectsController {
         beforeFile: { type: 'string', format: 'binary', nullable: true, default: null },
         afterFile: { type: 'string', format: 'binary', nullable: true, default: null },
       },
-      required: ['title', 'slug', 'description'],
+      required: ['title', 'slug', 'description', 'clientId'],
     },
   })
   @ApiResponse({ status: 201, description: 'Proyecto creado', type: Project })
