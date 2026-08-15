@@ -59,6 +59,7 @@ export class CreateProjectDto {
     required: false,
     type: String,
     format: 'date',
+    default: new Date().toISOString().split('T')[0], // Formato YYYY-MM-DD
   })
   @IsOptional()
   @IsDateString(
@@ -70,9 +71,9 @@ export class CreateProjectDto {
   @ApiProperty({
     description: 'ID del usuario cliente vinculado al proyecto',
     example: 'a0eebc99-9c0b-4ef8-bb6d-6bb9bd380a11',
-    required: false,
+    required: true,
   })
-  @IsOptional()
+  @IsNotEmpty({ message: 'El id del cliente no puede estar vacío.' })
   @IsUUID('4', { message: 'El cliente debe ser un UUID válido.' })
   clientId?: string;
 

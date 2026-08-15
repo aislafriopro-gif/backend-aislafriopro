@@ -27,6 +27,7 @@ import {
   ProjectImage,
   ProjectImageType,
 } from './media/entities/project-image.entity';
+import { RoleName } from '../roles/entities/roles.entity';
 
 @Injectable()
 export class ProjectsService {
@@ -232,6 +233,12 @@ export class ProjectsService {
   async update(
     id: string,
     updateProjectDto: UpdateProjectDto,
+    files?: {
+      coverFile?: Express.Multer.File[];
+      beforeFile?: Express.Multer.File[];
+      afterFile?: Express.Multer.File[];
+    },
+    uploadedById?: string | null,
   ): Promise<Project> {
     const project = await this.projectRepository.findOne({
       where: { id, deletedAt: IsNull() },
@@ -254,11 +261,50 @@ export class ProjectsService {
       project.services = await this.validateServices(
         updateProjectDto.serviceIds,
       );
-      delete updateProjectDto.serviceIds;
     }
 
-    Object.assign(project, updateProjectDto);
-    return this.projectRepository.save(project);
+    const updateData = { ...updateProjectDto };
+    delete updateData.coverFile;
+    delete updateData.beforeFile;
+    delete updateData.afterFile;
+    delete updateData.serviceIds;
+
+    Object.assign(project, updateData);
+    const savedProject = await this.projectRepository.save(project);
+
+    if (files) {
+      const imageInputs: Array<{
+        type: ProjectImageType;
+        file: Express.Multer.File;
+      }> = [];
+
+      const entries: Array<{
+        type: ProjectImageType;
+        fileArr?: Express.Multer.File[];
+      }> = [
+        { type: ProjectImageType.COVER, fileArr: files.coverFile },
+        { type: ProjectImageType.BEFORE, fileArr: files.beforeFile },
+        { type: ProjectImageType.AFTER, fileArr: files.afterFile },
+      ];
+
+      for (const entry of entries) {
+        const file = entry.fileArr?.[0];
+        if (file) {
+          this.validateImageFile(file);
+          imageInputs.push({ type: entry.type, file });
+        }
+      }
+
+      if (imageInputs.length > 0) {
+        await this.attachAndReorderUploadedImages(
+          savedProject.id,
+          imageInputs,
+          uploadedById,
+        );
+      }
+    }
+
+    return savedProject;
   }
 
   async remove(id: string): Promise<void> {
@@ -293,27 +339,45 @@ export class ProjectsService {
     return this.projectRepository.save(project);
   }
 
-  async setProjectImage(
+  private async attachAndReorderUploadedImages(
+    projectId: string,
+    imageInputs: Array<{
+      type: ProjectImageType;
+      file: Express.Multer.File;
+    }>,
+    uploadedById?: string | null,
+  ): Promise<void> {
+    for (const input of imageInputs) {
+      try {
+        const uploadResult = await this.cloudinaryService.uploadImage(
+          {
+            buffer: input.file.buffer,
+            mimetype: input.file.mimetype,
+            size: input.file.size,
+            originalname: input.file.originalname,
+          },
+          uploadedById,
+        );
+
+        await this.associateProjectImage(
+          projectId,
+          uploadResult.id,
+          input.type,
+        );
+      } catch (error) {
+        console.error(
+          `Error uploading ${input.type} image for project ${projectId}. El proyecto se actualizó sin esta imagen.`,
+          error,
+        );
+      }
+    }
+  }
+
+  private async associateProjectImage(
     projectId: string,
     mediaId: string,
     type: ProjectImageType,
-  ): Promise<ProjectPublicResponseDto> {
-    const project = await this.projectRepository.findOne({
-      where: { id: projectId, deletedAt: IsNull() },
-    });
-
-    if (!project) {
-      throw new NotFoundException(`Project with id "${projectId}" not found`);
-    }
-
-    const media = await this.mediaRepository.findOne({
-      where: { id: mediaId, deletedAt: IsNull() },
-    });
-
-    if (!media) {
-      throw new NotFoundException(`Media with id "${mediaId}" not found`);
-    }
-
+  ): Promise<void> {
     await this.projectImageRepository.increment(
       { projectId, type },
       'displayOrder',
@@ -327,21 +391,6 @@ export class ProjectsService {
       displayOrder: 1,
     });
     await this.projectImageRepository.save(image);
-
-    return this.findOne(projectId);
-  }
-
-  async uploadProjectImage(
-    projectId: string,
-    file: UploadImageFile,
-    type: ProjectImageType,
-    uploadedById?: string | null,
-  ): Promise<ProjectPublicResponseDto> {
-    const uploadResult = await this.cloudinaryService.uploadImage(
-      file,
-      uploadedById,
-    );
-    return this.setProjectImage(projectId, uploadResult.id, type);
   }
 
   private buildWhereClause(
@@ -421,31 +470,6 @@ export class ProjectsService {
     return services;
   }
 
-  private async validateMedia(mediaIds: string[]): Promise<void> {
-    const media = await this.mediaRepository.find({
-      where: { id: In(mediaIds) },
-      withDeleted: true,
-    });
-
-    const foundIds = new Set(media.map((item) => item.id));
-    const missingIds = mediaIds.filter((id) => !foundIds.has(id));
-
-    if (missingIds.length > 0) {
-      throw new NotFoundException(`Media not found: ${missingIds.join(', ')}`);
-    }
-
-    const deletedMedia = media.filter(
-      (item) => item.deletedAt !== null && item.deletedAt !== undefined,
-    );
-
-    if (deletedMedia.length > 0) {
-      const details = deletedMedia.map((item) => item.id).join(', ');
-      throw new BadRequestException(
-        `Cannot associate deleted media: ${details}`,
-      );
-    }
-  }
-
   private async validateClient(clientId: string): Promise<void> {
     const user = await this.userRepository.findOne({
       where: { id: clientId },
@@ -465,6 +489,12 @@ export class ProjectsService {
     if (user.status !== UserStatus.ACTIVE) {
       throw new BadRequestException(
         `Client with id "${clientId}" is not active (status: ${user.status})`,
+      );
+    }
+
+    if (user.role?.name !== RoleName.CLIENT) {
+      throw new BadRequestException(
+        `User with id "${clientId}" is not a client (role: ${user.role?.name})`,
       );
     }
   }
