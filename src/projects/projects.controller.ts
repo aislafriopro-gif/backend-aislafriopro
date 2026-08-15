@@ -71,8 +71,8 @@ export class ProjectsController {
         slug: { type: 'string' },
         description: { type: 'string' },
         location: { type: 'string', nullable: true },
-        completionDate: { type: 'string', format: 'date', nullable: true },
-        clientId: { type: 'string', format: 'uuid', nullable: true },
+        completionDate: { type: 'string', format: 'date' },
+        clientId: { type: 'string', format: 'uuid'},
         clientDisplayName: { type: 'string', nullable: true },
         serviceIds: {
           type: 'string',
