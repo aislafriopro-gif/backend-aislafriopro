@@ -6,11 +6,13 @@ import {
   ManyToOne,
   PrimaryGeneratedColumn,
 } from 'typeorm';
+import { Media } from '../../../media/entities/media.entity';
 import { Project } from '../../entities/project.entity';
 
 export enum ProjectImageType {
   BEFORE = 'BEFORE',
   AFTER = 'AFTER',
+  COVER = 'COVER',
 }
 
 @Entity('project_images')
@@ -27,11 +29,12 @@ export class ProjectImage {
   @JoinColumn({ name: 'projectId' })
   project!: Project;
 
-  @Column({ type: 'varchar', length: 500 })
-  url!: string;
+  @Column({ type: 'uuid', nullable: true })
+  mediaId!: string | null;
 
-  @Column({ type: 'varchar', length: 500 })
-  publicId!: string;
+  @ManyToOne(() => Media, { onDelete: 'SET NULL', nullable: true })
+  @JoinColumn({ name: 'mediaId' })
+  media!: Media | null;
 
   @Column({
     type: 'enum',
@@ -39,7 +42,7 @@ export class ProjectImage {
   })
   type!: ProjectImageType;
 
-  @Column({ type: 'int', nullable: true })
+  @Column({ type: 'int', nullable: false, default: 0 })
   displayOrder!: number | null;
 
   @CreateDateColumn()

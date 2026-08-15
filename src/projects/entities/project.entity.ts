@@ -58,7 +58,7 @@ export class Project {
   })
   services!: Service[];
 
-  @OneToMany(() => ProjectImage, (image) => image.project)
+  @OneToMany(() => ProjectImage, (image) => image.project, { cascade: true })
   images!: ProjectImage[];
 
   @CreateDateColumn()
