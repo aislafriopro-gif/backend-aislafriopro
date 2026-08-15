@@ -42,7 +42,7 @@ export class ProjectImage {
   })
   type!: ProjectImageType;
 
-  @Column({ type: 'int', nullable: true })
+  @Column({ type: 'int', nullable: false, default: 0 })
   displayOrder!: number | null;
 
   @CreateDateColumn()
