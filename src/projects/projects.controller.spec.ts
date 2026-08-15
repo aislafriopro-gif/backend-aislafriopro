@@ -1,10 +1,8 @@
 import { PaginatedResponse } from '../common/pagination';
 import { CreateProjectDto } from './dto/create-project.dto';
 import { FindProjectsQueryDto } from './dto/find-projects-query.dto';
-import { SetProjectImageDto } from './dto/set-project-image.dto';
 import { UpdateProjectDto } from './dto/update-project.dto';
 import { Project } from './entities/project.entity';
-import { ProjectImageType } from './media/entities/project-image.entity';
 import { ProjectsController } from './projects.controller';
 import { ProjectsService } from './projects.service';
 
@@ -55,32 +53,30 @@ describe('ProjectsController', () => {
   let findAllMock: jest.MockedFunction<ProjectsService['findAll']>;
   let findAllAdminMock: jest.MockedFunction<ProjectsService['findAllAdmin']>;
   let findOneMock: jest.MockedFunction<ProjectsService['findOne']>;
+  let findOneBySlugMock: jest.MockedFunction<ProjectsService['findOneBySlug']>;
   let updateMock: jest.MockedFunction<ProjectsService['update']>;
   let removeMock: jest.MockedFunction<ProjectsService['remove']>;
   let restoreMock: jest.MockedFunction<ProjectsService['restore']>;
-  let setProjectImageMock: jest.MockedFunction<
-    ProjectsService['setProjectImage']
-  >;
 
   beforeEach(() => {
     createMock = jest.fn();
     findAllMock = jest.fn();
     findAllAdminMock = jest.fn();
     findOneMock = jest.fn();
+    findOneBySlugMock = jest.fn();
     updateMock = jest.fn();
     removeMock = jest.fn();
     restoreMock = jest.fn();
-    setProjectImageMock = jest.fn();
 
     const projectsService = {
       create: createMock,
       findAll: findAllMock,
       findAllAdmin: findAllAdminMock,
       findOne: findOneMock,
+      findOneBySlug: findOneBySlugMock,
       update: updateMock,
       remove: removeMock,
       restore: restoreMock,
-      setProjectImage: setProjectImageMock,
     } as unknown as ProjectsService;
 
     projectsController = new ProjectsController(projectsService);
@@ -100,10 +96,10 @@ describe('ProjectsController', () => {
       });
       createMock.mockResolvedValue(created);
 
-      const result = await projectsController.create(dto);
+      const result = await projectsController.create(dto, {}, undefined);
 
       expect(result).toBe(created);
-      expect(createMock).toHaveBeenCalledWith(dto);
+      expect(createMock).toHaveBeenCalledWith(dto, {}, undefined);
     });
   });
 
@@ -111,7 +107,7 @@ describe('ProjectsController', () => {
     it('debe delegar el listado público al servicio', async () => {
       const project = buildProject();
       const paginated = buildPaginatedResponse<Project>([project], 1);
-      findAllMock.mockResolvedValue(paginated);
+      findAllMock.mockResolvedValue(paginated as any);
 
       const query = buildFindProjectsQuery();
       const result = await projectsController.findAll(query);
@@ -125,7 +121,7 @@ describe('ProjectsController', () => {
     it('debe delegar el listado admin al servicio', async () => {
       const project = buildProject({ deletedAt: new Date() });
       const paginated = buildPaginatedResponse<Project>([project], 1);
-      findAllAdminMock.mockResolvedValue(paginated);
+      findAllAdminMock.mockResolvedValue(paginated as any);
 
       const query = buildFindProjectsQuery();
       const result = await projectsController.findAllAdmin(query);
@@ -138,12 +134,25 @@ describe('ProjectsController', () => {
   describe('findOne', () => {
     it('debe obtener un proyecto por id', async () => {
       const project = buildProject();
-      findOneMock.mockResolvedValue(project);
+      findOneMock.mockResolvedValue(project as any);
 
       const result = await projectsController.findOne(project.id);
 
       expect(result).toBe(project);
       expect(findOneMock).toHaveBeenCalledWith(project.id);
+    });
+  });
+
+  describe('findOneBySlug', () => {
+    it('debe obtener un proyecto por slug', async () => {
+      const slug = 'aislacion-termica-camara-frigorifica';
+      const project = buildProject({ slug });
+      findOneBySlugMock.mockResolvedValue(project as any);
+
+      const result = await projectsController.findOneBySlug(slug);
+
+      expect(result).toBe(project);
+      expect(findOneBySlugMock).toHaveBeenCalledWith(slug);
     });
   });
 
@@ -153,10 +162,15 @@ describe('ProjectsController', () => {
       const dto: UpdateProjectDto = { title: 'Nuevo título' };
       updateMock.mockResolvedValue(project);
 
-      const result = await projectsController.update(project.id, dto);
+      const result = await projectsController.update(
+        project.id,
+        dto,
+        {},
+        undefined,
+      );
 
       expect(result).toBe(project);
-      expect(updateMock).toHaveBeenCalledWith(project.id, dto);
+      expect(updateMock).toHaveBeenCalledWith(project.id, dto, {}, undefined);
     });
   });
 
@@ -182,51 +196,4 @@ describe('ProjectsController', () => {
     });
   });
 
-  describe('setProjectImage endpoints', () => {
-    const dto: SetProjectImageDto = {
-      mediaId: 'm1a2b3c4-d5e6-7890-abcd-ef1234567890',
-    };
-
-    it('cover-image debe delegar con el tipo COVER', async () => {
-      const project = buildProject();
-      setProjectImageMock.mockResolvedValue(project);
-
-      const result = await projectsController.setCoverImage(project.id, dto);
-
-      expect(result).toBe(project);
-      expect(setProjectImageMock).toHaveBeenCalledWith(
-        project.id,
-        dto.mediaId,
-        ProjectImageType.COVER,
-      );
-    });
-
-    it('before-image debe delegar con el tipo BEFORE', async () => {
-      const project = buildProject();
-      setProjectImageMock.mockResolvedValue(project);
-
-      const result = await projectsController.setBeforeImage(project.id, dto);
-
-      expect(result).toBe(project);
-      expect(setProjectImageMock).toHaveBeenCalledWith(
-        project.id,
-        dto.mediaId,
-        ProjectImageType.BEFORE,
-      );
-    });
-
-    it('after-image debe delegar con el tipo AFTER', async () => {
-      const project = buildProject();
-      setProjectImageMock.mockResolvedValue(project);
-
-      const result = await projectsController.setAfterImage(project.id, dto);
-
-      expect(result).toBe(project);
-      expect(setProjectImageMock).toHaveBeenCalledWith(
-        project.id,
-        dto.mediaId,
-        ProjectImageType.AFTER,
-      );
-    });
-  });
 });

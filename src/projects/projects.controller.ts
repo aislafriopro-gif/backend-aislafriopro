@@ -2,26 +2,18 @@ import {
   Body,
   Controller,
   Delete,
-  FileTypeValidator,
   Get,
   HttpCode,
   HttpStatus,
-  MaxFileSizeValidator,
   Param,
-  ParseEnumPipe,
-  ParseFilePipe,
   ParseUUIDPipe,
   Patch,
   Post,
   Query,
-  UploadedFile,
   UploadedFiles,
   UseInterceptors,
 } from '@nestjs/common';
-import {
-  FileFieldsInterceptor,
-  FileInterceptor,
-} from '@nestjs/platform-express';
+import { FileFieldsInterceptor } from '@nestjs/platform-express';
 import {
   ApiBody,
   ApiConsumes,
@@ -38,10 +30,8 @@ import { RoleName } from '../roles/entities/roles.entity';
 import { CreateProjectDto } from './dto/create-project.dto';
 import { FindProjectsQueryDto } from './dto/find-projects-query.dto';
 import { ProjectPublicResponseDto } from './dto/project-public-response.dto';
-import { SetProjectImageDto } from './dto/set-project-image.dto';
 import { UpdateProjectDto } from './dto/update-project.dto';
 import { Project } from './entities/project.entity';
-import { ProjectImageType } from './media/entities/project-image.entity';
 import { ProjectsService } from './projects.service';
 
 @ApiTags('Projects')
@@ -71,8 +61,8 @@ export class ProjectsController {
         slug: { type: 'string' },
         description: { type: 'string' },
         location: { type: 'string', nullable: true },
-        completionDate: { type: 'string', format: 'date', nullable: true },
-        clientId: { type: 'string', format: 'uuid', nullable: true },
+        completionDate: { type: 'string', format: 'date' },
+        clientId: { type: 'string', format: 'uuid'},
         clientDisplayName: { type: 'string', nullable: true },
         serviceIds: {
           type: 'string',
@@ -84,7 +74,7 @@ export class ProjectsController {
         beforeFile: { type: 'string', format: 'binary', nullable: true, default: null },
         afterFile: { type: 'string', format: 'binary', nullable: true, default: null },
       },
-      required: ['title', 'slug', 'description'],
+      required: ['title', 'slug', 'description', 'clientId'],
     },
   })
   @ApiResponse({ status: 201, description: 'Proyecto creado', type: Project })
@@ -120,7 +110,7 @@ export class ProjectsController {
     return this.projectsService.findAll(query);
   }
 
-  @Get(':slug')
+  @Get('by-slug/:slug')
   @ApiOperation({ summary: 'Obtener detalle de un proyecto activo por slug' })
   @ApiParam({ name: 'slug', type: 'string' })
   async findOneBySlug(
@@ -140,118 +130,55 @@ export class ProjectsController {
 
   @Patch(':id')
   @Auth(RoleName.ADMIN)
-  @ApiOperation({ summary: 'Editar un proyecto (ADMIN)' })
-  @ApiParam({ name: 'id', type: 'string', format: 'uuid' })
-  async update(
-    @Param('id', new ParseUUIDPipe()) id: string,
-    @Body() updateProjectDto: UpdateProjectDto,
-  ): Promise<Project> {
-    return this.projectsService.update(id, updateProjectDto);
-  }
-
-  @Patch(':id/cover-image')
-  @Auth(RoleName.ADMIN)
-  @ApiOperation({
-    summary:
-      'Subir imagen de portada (queda primera en la galería de portadas) (ADMIN)',
-  })
-  @ApiParam({ name: 'id', type: 'string', format: 'uuid' })
-  async setCoverImage(
-    @Param('id', new ParseUUIDPipe()) id: string,
-    @Body() setProjectImageDto: SetProjectImageDto,
-  ): Promise<ProjectPublicResponseDto> {
-    return this.projectsService.setProjectImage(
-      id,
-      setProjectImageDto.mediaId,
-      ProjectImageType.COVER,
-    );
-  }
-
-  @Patch(':id/before-image')
-  @Auth(RoleName.ADMIN)
-  @ApiOperation({
-    summary:
-      'Subir imagen "antes" (queda primera en la galería de antes) (ADMIN)',
-  })
-  @ApiParam({ name: 'id', type: 'string', format: 'uuid' })
-  async setBeforeImage(
-    @Param('id', new ParseUUIDPipe()) id: string,
-    @Body() setProjectImageDto: SetProjectImageDto,
-  ): Promise<ProjectPublicResponseDto> {
-    return this.projectsService.setProjectImage(
-      id,
-      setProjectImageDto.mediaId,
-      ProjectImageType.BEFORE,
-    );
-  }
-
-  @Patch(':id/after-image')
-  @Auth(RoleName.ADMIN)
-  @ApiOperation({
-    summary:
-      'Subir imagen "después" (queda primera en la galería de después) (ADMIN)',
-  })
-  @ApiParam({ name: 'id', type: 'string', format: 'uuid' })
-  async setAfterImage(
-    @Param('id', new ParseUUIDPipe()) id: string,
-    @Body() setProjectImageDto: SetProjectImageDto,
-  ): Promise<ProjectPublicResponseDto> {
-    return this.projectsService.setProjectImage(
-      id,
-      setProjectImageDto.mediaId,
-      ProjectImageType.AFTER,
-    );
-  }
-
-  @Post(':id/images/upload')
-  @Auth(RoleName.ADMIN)
-  @UseInterceptors(FileInterceptor('file'))
+  @UseInterceptors(
+    FileFieldsInterceptor([
+      { name: 'coverFile', maxCount: 1 },
+      { name: 'beforeFile', maxCount: 1 },
+      { name: 'afterFile', maxCount: 1 },
+    ]),
+  )
   @ApiConsumes('multipart/form-data')
   @ApiOperation({
     summary:
-      'Subir imagen a Cloudinary y asociarla al proyecto (cover, before o after) (ADMIN)',
+      'Editar un proyecto, incluyendo imágenes opcionales (coverFile, beforeFile, afterFile) (ADMIN)',
   })
   @ApiParam({ name: 'id', type: 'string', format: 'uuid' })
   @ApiBody({
     schema: {
       type: 'object',
       properties: {
-        file: { type: 'string', format: 'binary' },
-        type: {
+        title: { type: 'string' },
+        slug: { type: 'string' },
+        description: { type: 'string' },
+        location: { type: 'string', nullable: true },
+        completionDate: { type: 'string', format: 'date', nullable: true },
+        clientId: { type: 'string', format: 'uuid', nullable: true },
+        clientDisplayName: { type: 'string', nullable: true },
+        serviceIds: {
           type: 'string',
-          enum: Object.values(ProjectImageType),
-          description: 'Tipo de imagen del proyecto',
+          description:
+            'JSON array serializado con los UUIDs de servicios. Ej: ["uuid1","uuid2"]',
+          nullable: true,
         },
+        coverFile: { type: 'string', format: 'binary', nullable: true, default: null },
+        beforeFile: { type: 'string', format: 'binary', nullable: true, default: null },
+        afterFile: { type: 'string', format: 'binary', nullable: true, default: null },
       },
-      required: ['file', 'type'],
+      required: [],
     },
   })
-  async uploadProjectImage(
+  async update(
     @Param('id', new ParseUUIDPipe()) id: string,
-    @UploadedFile(
-      new ParseFilePipe({
-        validators: [
-          new MaxFileSizeValidator({ maxSize: 5 * 1024 * 1024 }),
-          new FileTypeValidator({ fileType: /image\/(jpeg|png|webp|gif)/ }),
-        ],
-      }),
-    )
-    file: Express.Multer.File,
-    @Body('type', new ParseEnumPipe(ProjectImageType))
-    type: ProjectImageType,
+    @Body() updateProjectDto: UpdateProjectDto,
+    @UploadedFiles()
+    files: {
+      coverFile?: Express.Multer.File[];
+      beforeFile?: Express.Multer.File[];
+      afterFile?: Express.Multer.File[];
+    },
     @CurrentUser('id') userId: string | undefined,
-  ): Promise<ProjectPublicResponseDto> {
-    return this.projectsService.uploadProjectImage(
-      id,
-      {
-        buffer: file.buffer,
-        mimetype: file.mimetype,
-        size: file.size,
-        originalname: file.originalname,
-      },
-      type,
-      userId ?? null,
-    );
+  ): Promise<Project> {
+    return this.projectsService.update(id, updateProjectDto, files, userId);
   }
 
   @Delete(':id')
