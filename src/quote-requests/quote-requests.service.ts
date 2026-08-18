@@ -1,7 +1,15 @@
 import { BadRequestException, Injectable } from '@nestjs/common';
 import { InjectRepository } from '@nestjs/typeorm';
 import { IsNull, Repository } from 'typeorm';
-import { QuoteRequest, QuoteRequestStatus } from './entities/quote-request.entity';
+import {
+  PaginationParamsDto,
+  PaginatedResponse,
+  buildPaginatedResponse,
+} from '../common/pagination';
+import {
+  QuoteRequest,
+  QuoteRequestStatus,
+} from './entities/quote-request.entity';
 import { Service } from '../services/entities/service.entity';
 import { CreateQuoteRequestDto } from './dto/create-quote-request.dto';
 
@@ -37,5 +45,33 @@ export class QuoteRequestsService {
     });
 
     return this.quoteRequestRepository.save(quoteRequest);
+  }
+
+  async findAll(
+    pagination: PaginationParamsDto,
+    filters?: { status?: QuoteRequestStatus },
+  ): Promise<PaginatedResponse<QuoteRequest>> {
+    const query = this.quoteRequestRepository
+      .createQueryBuilder('quoteRequest')
+      .leftJoinAndSelect('quoteRequest.service', 'service')
+      .leftJoinAndSelect('quoteRequest.notes', 'notes')
+      .orderBy('quoteRequest.createdAt', 'DESC')
+      .skip(pagination.offset)
+      .take(pagination.limit);
+
+    if (filters?.status) {
+      query.andWhere('quoteRequest.status = :status', {
+        status: filters.status,
+      });
+    }
+
+    const [data, total] = await query.getManyAndCount();
+
+    return buildPaginatedResponse(
+      data,
+      total,
+      pagination.page,
+      pagination.limit,
+    );
   }
 }
