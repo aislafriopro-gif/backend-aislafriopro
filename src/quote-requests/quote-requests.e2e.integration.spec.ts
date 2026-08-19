@@ -15,6 +15,7 @@ import {
   QuoteRequestStatus,
 } from './entities/quote-request.entity';
 import { Service } from '../services/entities/service.entity';
+import { QuoteRequestNote } from './notes/quote-request-note.entity';
 
 const buildService = (overrides: Partial<Service> = {}): Service =>
   Object.assign(new Service(), {
@@ -59,6 +60,10 @@ describe('QuoteRequestsController (integration)', () => {
   let serviceRepository: {
     findOne: jest.Mock;
   };
+  let quoteRequestNoteRepository: {
+    create: jest.Mock;
+    save: jest.Mock;
+  };
   let getManyAndCountMock: jest.Mock;
 
   beforeEach(async () => {
@@ -93,6 +98,18 @@ describe('QuoteRequestsController (integration)', () => {
       findOne: jest.fn().mockResolvedValue(buildService()),
     };
 
+    quoteRequestNoteRepository = {
+      create: jest.fn((input) => Object.assign(new QuoteRequestNote(), input)),
+      save: jest.fn((note: QuoteRequestNote) =>
+        Promise.resolve(
+          Object.assign(new QuoteRequestNote(), note, {
+            id: note.id ?? 'c3d4e5f6-a7b8-4901-cdef-1234567890ab',
+            createdAt: new Date('2026-01-01T10:00:00.000Z'),
+          }),
+        ),
+      ),
+    };
+
     const moduleFixture: TestingModule = await Test.createTestingModule({
       controllers: [QuoteRequestsController],
       providers: [
@@ -100,6 +117,10 @@ describe('QuoteRequestsController (integration)', () => {
         {
           provide: getRepositoryToken(QuoteRequest),
           useValue: quoteRequestRepository,
+        },
+        {
+          provide: getRepositoryToken(QuoteRequestNote),
+          useValue: quoteRequestNoteRepository,
         },
         {
           provide: getRepositoryToken(Service),

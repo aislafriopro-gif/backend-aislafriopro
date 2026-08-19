@@ -14,9 +14,9 @@ import { QuoteRequestNote } from '../notes/quote-request-note.entity';
 
 export enum QuoteRequestStatus {
   NEW = 'NEW',
-  IN_REVIEW = 'IN_REVIEW',
-  RESPONDED = 'RESPONDED',
-  CLOSED = 'CLOSED',
+  IN_PROGRESS = 'IN_PROGRESS',
+  RESOLVED = 'RESOLVED',
+  REJECTED = 'REJECTED',
 }
 
 @Entity('quote_requests')
@@ -41,7 +41,11 @@ export class QuoteRequest {
   @Column({ type: 'text' })
   message!: string;
 
-  @Column({ type: 'enum', enum: QuoteRequestStatus, default: QuoteRequestStatus.NEW })
+  @Column({
+    type: 'enum',
+    enum: QuoteRequestStatus,
+    default: QuoteRequestStatus.NEW,
+  })
   status!: QuoteRequestStatus;
 
   @OneToMany(() => QuoteRequestNote, (note) => note.quoteRequest, {
