@@ -5,6 +5,7 @@ import { IsNull, Repository } from 'typeorm';
 import { PaginationParamsDto, PaginatedResponse } from '../common/pagination';
 import { Service } from '../services/entities/service.entity';
 import { CreateQuoteRequestDto } from './dto/create-quote-request.dto';
+import { QuoteRequestNote } from './notes/quote-request-note.entity';
 import {
   QuoteRequest,
   QuoteRequestStatus,
@@ -85,6 +86,10 @@ describe('QuoteRequestsService', () => {
   let serviceRepository: {
     findOne: jest.Mock;
   };
+  let quoteRequestNoteRepository: {
+    create: jest.Mock;
+    save: jest.Mock;
+  };
   let quoteRequestsService: QuoteRequestsService;
 
   let createQueryBuilderMock: jest.Mock;
@@ -136,8 +141,21 @@ describe('QuoteRequestsService', () => {
       findOne: jest.fn(),
     };
 
+    quoteRequestNoteRepository = {
+      create: jest.fn((input) => Object.assign(new QuoteRequestNote(), input)),
+      save: jest.fn((note: QuoteRequestNote) =>
+        Promise.resolve(
+          Object.assign(new QuoteRequestNote(), note, {
+            id: note.id ?? 'c3d4e5f6-a7b8-4901-cdef-1234567890ab',
+            createdAt: new Date(),
+          }),
+        ),
+      ),
+    };
+
     quoteRequestsService = new QuoteRequestsService(
       quoteRequestRepository as unknown as Repository<QuoteRequest>,
+      quoteRequestNoteRepository as unknown as Repository<QuoteRequestNote>,
       serviceRepository as unknown as Repository<Service>,
     );
   });

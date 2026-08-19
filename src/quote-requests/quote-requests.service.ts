@@ -1,4 +1,8 @@
-import { BadRequestException, Injectable } from '@nestjs/common';
+import {
+  BadRequestException,
+  Injectable,
+  NotFoundException,
+} from '@nestjs/common';
 import { InjectRepository } from '@nestjs/typeorm';
 import { IsNull, Repository } from 'typeorm';
 import {
@@ -12,12 +16,15 @@ import {
 } from './entities/quote-request.entity';
 import { Service } from '../services/entities/service.entity';
 import { CreateQuoteRequestDto } from './dto/create-quote-request.dto';
+import { QuoteRequestNote } from './notes/quote-request-note.entity';
 
 @Injectable()
 export class QuoteRequestsService {
   constructor(
     @InjectRepository(QuoteRequest)
     private readonly quoteRequestRepository: Repository<QuoteRequest>,
+    @InjectRepository(QuoteRequestNote)
+    private readonly quoteRequestNoteRepository: Repository<QuoteRequestNote>,
     @InjectRepository(Service)
     private readonly serviceRepository: Repository<Service>,
   ) {}
@@ -73,5 +80,58 @@ export class QuoteRequestsService {
       pagination.page,
       pagination.limit,
     );
+  }
+
+  async findOne(id: string): Promise<QuoteRequest> {
+    const quoteRequest = await this.quoteRequestRepository.findOne({
+      where: { id },
+      relations: ['service', 'notes'],
+    });
+
+    if (!quoteRequest) {
+      throw new NotFoundException(`Quote request with id "${id}" not found`);
+    }
+
+    return quoteRequest;
+  }
+
+  async addNote(
+    quoteRequestId: string,
+    content: string,
+  ): Promise<QuoteRequestNote> {
+    const quoteRequest = await this.quoteRequestRepository.findOne({
+      where: { id: quoteRequestId },
+    });
+
+    if (!quoteRequest) {
+      throw new NotFoundException(
+        `Quote request with id "${quoteRequestId}" not found`,
+      );
+    }
+
+    const note = this.quoteRequestNoteRepository.create({
+      quoteRequest,
+      note: content,
+    });
+
+    return this.quoteRequestNoteRepository.save(note);
+  }
+
+  async updateStatus(
+    id: string,
+    status: QuoteRequestStatus,
+  ): Promise<QuoteRequest> {
+    const quoteRequest = await this.quoteRequestRepository.findOne({
+      where: { id },
+      relations: ['service', 'notes'],
+    });
+
+    if (!quoteRequest) {
+      throw new NotFoundException(`Quote request with id "${id}" not found`);
+    }
+
+    quoteRequest.status = status;
+
+    return this.quoteRequestRepository.save(quoteRequest);
   }
 }
