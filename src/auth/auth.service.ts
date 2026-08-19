@@ -1,5 +1,10 @@
 import { randomUUID } from 'node:crypto';
-import { Injectable, UnauthorizedException } from '@nestjs/common';
+import {
+  Injectable,
+  UnauthorizedException,
+  ConflictException,
+  NotFoundException,
+} from '@nestjs/common';
 import { ConfigService } from '@nestjs/config';
 import { JwtService } from '@nestjs/jwt';
 import { InjectRepository } from '@nestjs/typeorm';
@@ -13,6 +18,10 @@ import { JwtPayload } from './interfaces/jwt-payload.interface';
 import { RefreshJwtPayload } from './interfaces/refresh-jwt-payload.interface';
 import { SessionMetadata } from './interfaces/session-metadata.interface';
 import { TokenPairResponse } from './interfaces/token-pair-response.interface';
+import { Client } from '../clients/entities/client.entity';
+import { Role, RoleName } from '../roles/entities/roles.entity';
+import { RegisterDto } from './dto/register.dto';
+import { RegisterResponseDto } from './dto/register-response.dto';
 
 const INVALID_CREDENTIALS_MESSAGE = 'Credenciales inválidas.';
 const INVALID_REFRESH_TOKEN_MESSAGE = 'Refresh token inválido.';
@@ -22,6 +31,8 @@ export class AuthService {
   constructor(
     @InjectRepository(User)
     private readonly userRepository: Repository<User>,
+    @InjectRepository(Role)
+    private readonly roleRepository: Repository<Role>,
     private readonly jwtService: JwtService,
     private readonly configService: ConfigService<
       ApplicationConfiguration,
@@ -65,6 +76,72 @@ export class AuthService {
     const user = await this.validateCredentials(loginDto);
 
     return this.issueTokenPair(user, metadata);
+  }
+
+  async register(
+    registerDto: RegisterDto,
+    metadata: SessionMetadata,
+  ): Promise<RegisterResponseDto> {
+    const normalizedEmail = registerDto.email.trim().toLowerCase();
+
+    const existingUser = await this.userRepository.findOne({
+      where: { email: normalizedEmail },
+      withDeleted: true,
+    });
+
+    if (existingUser) {
+      throw new ConflictException('Email ya registrado');
+    }
+
+    const clientRole = await this.roleRepository.findOneBy({
+      name: RoleName.CLIENT,
+    });
+
+    if (!clientRole) {
+      throw new NotFoundException('Role CLIENT not found in catalog');
+    }
+
+    const hashedPassword = await bcrypt.hash(registerDto.password, 10);
+
+    const user = await this.userRepository.manager.transaction(
+      async (manager) => {
+        const createdUser = manager.create(User, {
+          name: registerDto.name,
+          email: normalizedEmail,
+          phone: registerDto.phone,
+          password: hashedPassword,
+          role: clientRole,
+        });
+
+        const savedUser = await manager.save(User, createdUser);
+
+        const client = manager.create(Client, {
+          userId: savedUser.id,
+          user: savedUser,
+        });
+
+        await manager.save(Client, client);
+
+        return savedUser;
+      },
+    );
+
+    const userWithRole = await this.userRepository.findOneOrFail({
+      where: { id: user.id },
+      relations: { role: true },
+    });
+
+    const tokenPair = await this.issueTokenPair(userWithRole, metadata);
+
+    return {
+      user: {
+        id: userWithRole.id,
+        name: userWithRole.name,
+        email: userWithRole.email,
+        role: RoleName.CLIENT,
+      },
+      token: tokenPair.accessToken,
+    };
   }
 
   async refresh(
