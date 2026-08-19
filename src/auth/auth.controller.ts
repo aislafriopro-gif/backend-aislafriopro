@@ -16,6 +16,7 @@ import type { SessionMetadata } from './interfaces/session-metadata.interface';
 import type { TokenPairResponse } from './interfaces/token-pair-response.interface';
 import { RegisterDto } from './dto/register.dto';
 import { RegisterResponseDto } from './dto/register-response.dto';
+import { LoginResponseDto } from './dto/login-response.dto';
 
 @ApiTags('Auth')
 @Controller('auth')
@@ -48,12 +49,16 @@ export class AuthController {
   @Post('login')
   @HttpCode(HttpStatus.OK)
   @ApiOperation({ summary: 'Iniciar sesión' })
-  @ApiResponse({ status: 200, description: 'Login exitoso' })
+  @ApiResponse({
+    status: 200,
+    description: 'Login exitoso',
+    type: LoginResponseDto,
+  })
   @ApiResponse({ status: 401, description: 'Credenciales inválidas' })
   async login(
     @Body() loginDto: LoginDto,
     @Req() req: Request,
-  ): Promise<TokenPairResponse> {
+  ): Promise<LoginResponseDto> {
     const metadata: SessionMetadata = {
       ipAddress: req.ip ?? '',
       userAgent: (req.headers['user-agent'] as string) ?? '',

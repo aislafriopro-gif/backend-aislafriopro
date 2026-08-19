@@ -2,6 +2,8 @@ import { AuthController } from './auth.controller';
 import { AuthService } from './auth.service';
 import { Request } from 'express';
 import { RegisterDto } from './dto/register.dto';
+import { LoginDto } from './dto/login.dto';
+import { RoleName } from '../roles/entities/roles.entity';
 
 describe('AuthController', () => {
   let authController: AuthController;
@@ -17,6 +19,18 @@ describe('AuthController', () => {
       token: string;
     }>,
     [RegisterDto, { ipAddress: string; userAgent: string }]
+  >;
+  let loginMock: jest.Mock<
+    Promise<{
+      user: {
+        id: string;
+        name: string;
+        email: string;
+        role: RoleName;
+      };
+      token: string;
+    }>,
+    [LoginDto, { ipAddress: string; userAgent: string }]
   >;
 
   beforeEach(() => {
@@ -45,9 +59,33 @@ describe('AuthController', () => {
         token: 'jwt-access-token',
       });
 
+    loginMock = jest
+      .fn<
+        Promise<{
+          user: {
+            id: string;
+            name: string;
+            email: string;
+            role: RoleName;
+          };
+          token: string;
+        }>,
+        [LoginDto, { ipAddress: string; userAgent: string }]
+      >()
+      .mockResolvedValue({
+        user: {
+          id: 'user-id',
+          name: 'Usuario de prueba',
+          email: 'usuario@aislafriopro.com',
+          role: RoleName.CLIENT,
+        },
+        token: 'jwt-access-token',
+      });
+
     const authService = {
       logout: logoutMock,
       register: registerMock,
+      login: loginMock,
     } as unknown as AuthService;
 
     authController = new AuthController(authService);
@@ -81,6 +119,37 @@ describe('AuthController', () => {
         name: 'Juan Pérez',
         email: 'juan@example.com',
         role: 'CLIENT',
+      },
+      token: 'jwt-access-token',
+    });
+  });
+
+  it('debe iniciar sesión y devolver usuario con rol', async () => {
+    const dto: LoginDto = {
+      email: 'usuario@aislafriopro.com',
+      password: 'Password123',
+    };
+
+    const req = {
+      ip: '127.0.0.1',
+      headers: {
+        'user-agent': 'Jest',
+      },
+    } as Request;
+
+    const result = await authController.login(dto, req);
+
+    expect(loginMock).toHaveBeenCalledWith(dto, {
+      ipAddress: '127.0.0.1',
+      userAgent: 'Jest',
+    });
+
+    expect(result).toEqual({
+      user: {
+        id: 'user-id',
+        name: 'Usuario de prueba',
+        email: 'usuario@aislafriopro.com',
+        role: RoleName.CLIENT,
       },
       token: 'jwt-access-token',
     });

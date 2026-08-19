@@ -22,6 +22,7 @@ import { Client } from '../clients/entities/client.entity';
 import { Role, RoleName } from '../roles/entities/roles.entity';
 import { RegisterDto } from './dto/register.dto';
 import { RegisterResponseDto } from './dto/register-response.dto';
+import { LoginResponseDto } from './dto/login-response.dto';
 
 const INVALID_CREDENTIALS_MESSAGE = 'Credenciales inválidas.';
 const INVALID_REFRESH_TOKEN_MESSAGE = 'Refresh token inválido.';
@@ -72,10 +73,19 @@ export class AuthService {
   async login(
     loginDto: LoginDto,
     metadata: SessionMetadata,
-  ): Promise<TokenPairResponse> {
+  ): Promise<LoginResponseDto> {
     const user = await this.validateCredentials(loginDto);
+    const tokenPair = await this.issueTokenPair(user, metadata);
 
-    return this.issueTokenPair(user, metadata);
+    return {
+      user: {
+        id: user.id,
+        name: user.name,
+        email: user.email,
+        role: user.role.name,
+      },
+      token: tokenPair.accessToken,
+    };
   }
 
   async register(

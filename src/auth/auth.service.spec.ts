@@ -278,7 +278,7 @@ describe('AuthService', () => {
     ).rejects.toThrow(UnauthorizedException);
   });
 
-  it('debe generar access y refresh token al iniciar sesión', async () => {
+  it('debe iniciar sesión y devolver usuario con rol y token', async () => {
     const now = 1_800_000_000_000;
     jest.spyOn(Date, 'now').mockReturnValue(now);
 
@@ -302,8 +302,13 @@ describe('AuthService', () => {
     );
 
     expect(result).toEqual({
-      accessToken: 'jwt-access-token',
-      refreshToken: RAW_REFRESH_TOKEN,
+      user: {
+        id: user.id,
+        name: user.name,
+        email: user.email,
+        role: user.role.name,
+      },
+      token: 'jwt-access-token',
     });
 
     expect(signAsyncMock).toHaveBeenCalledTimes(2);
