@@ -1,4 +1,8 @@
-import { UnauthorizedException } from '@nestjs/common';
+import {
+  ConflictException,
+  NotFoundException,
+  UnauthorizedException,
+} from '@nestjs/common';
 import { ConfigService } from '@nestjs/config';
 import { JwtService } from '@nestjs/jwt';
 import * as bcrypt from 'bcrypt';
@@ -15,6 +19,7 @@ import { AuthService } from './auth.service';
 import { JwtPayload } from './interfaces/jwt-payload.interface';
 import { RefreshJwtPayload } from './interfaces/refresh-jwt-payload.interface';
 import { SessionMetadata } from './interfaces/session-metadata.interface';
+import { Role } from '../roles/entities/roles.entity';
 
 const REFRESH_SECRET = 'test-refresh-secret-with-at-least-32-characters';
 const REFRESH_EXPIRES_IN_SECONDS = 604800;
@@ -44,6 +49,13 @@ type GetConfigValue = (
   },
 ) => string | number;
 
+type TransactionManagerMock = {
+  create: jest.Mock<unknown, [unknown, unknown]>;
+  save: jest.Mock<Promise<unknown>, [unknown, unknown]>;
+};
+
+type TransactionCallback = (manager: TransactionManagerMock) => Promise<User>;
+
 describe('AuthService', () => {
   let authService: AuthService;
   let passwordHash: string;
@@ -65,6 +77,10 @@ describe('AuthService', () => {
   let revokeSessionMock: jest.MockedFunction<
     (session: Session) => Promise<Session>
   >;
+
+  let findOneByRoleMock: jest.Mock<Promise<Role | null>, [{ name: RoleName }]>;
+  let findOneOrFailMock: jest.Mock<Promise<User>, [unknown]>;
+  let transactionMock: jest.Mock<Promise<User>, [TransactionCallback]>;
 
   beforeAll(async () => {
     passwordHash = await bcrypt.hash('Password123', 4);
@@ -97,9 +113,23 @@ describe('AuthService', () => {
 
     revokeSessionMock = jest.fn<Promise<Session>, [Session]>();
 
+    findOneByRoleMock = jest.fn<Promise<Role | null>, [{ name: RoleName }]>();
+
+    findOneOrFailMock = jest.fn<Promise<User>, [unknown]>();
+
+    transactionMock = jest.fn<Promise<User>, [TransactionCallback]>();
+
     const userRepository = {
       findOne: findOneMock,
+      findOneOrFail: findOneOrFailMock,
+      manager: {
+        transaction: transactionMock,
+      },
     } as unknown as Repository<User>;
+
+    const roleRepository = {
+      findOneBy: findOneByRoleMock,
+    } as unknown as Repository<Role>;
 
     const jwtService = {
       signAsync: signAsyncMock,
@@ -118,6 +148,7 @@ describe('AuthService', () => {
 
     authService = new AuthService(
       userRepository,
+      roleRepository,
       jwtService,
       configService,
       sessionsService,
@@ -247,7 +278,7 @@ describe('AuthService', () => {
     ).rejects.toThrow(UnauthorizedException);
   });
 
-  it('debe generar access y refresh token al iniciar sesión', async () => {
+  it('debe iniciar sesión y devolver usuario con rol y token', async () => {
     const now = 1_800_000_000_000;
     jest.spyOn(Date, 'now').mockReturnValue(now);
 
@@ -271,8 +302,13 @@ describe('AuthService', () => {
     );
 
     expect(result).toEqual({
-      accessToken: 'jwt-access-token',
-      refreshToken: RAW_REFRESH_TOKEN,
+      user: {
+        id: user.id,
+        name: user.name,
+        email: user.email,
+        role: user.role.name,
+      },
+      token: 'jwt-access-token',
     });
 
     expect(signAsyncMock).toHaveBeenCalledTimes(2);
@@ -467,5 +503,127 @@ describe('AuthService', () => {
       RAW_REFRESH_TOKEN,
     );
     expect(revokeSessionMock).not.toHaveBeenCalled();
+  });
+
+  describe('register', () => {
+    it('debe crear usuario CLIENT, registro Client y devolver token', async () => {
+      const clientRole = {
+        id: 'client-role-id',
+        name: RoleName.CLIENT,
+        users: [],
+        createdAt: new Date(),
+      } as Role;
+
+      const savedUser = buildUser({
+        id: 'new-user-id',
+        name: 'Juan Pérez',
+        email: 'juan@example.com',
+        phone: '+54 9 11 1234-5678',
+        role: clientRole,
+      });
+
+      findOneMock.mockResolvedValue(null);
+      findOneByRoleMock.mockResolvedValue(clientRole);
+      findOneOrFailMock.mockResolvedValue(savedUser);
+
+      transactionMock.mockImplementation(async (callback) => {
+        const manager: TransactionManagerMock = {
+          create: jest.fn<unknown, [unknown, unknown]>((_entity, data) => data),
+          save: jest.fn<Promise<unknown>, [unknown, unknown]>(
+            (entity, data) => {
+              if (
+                entity === User &&
+                typeof data === 'object' &&
+                data !== null
+              ) {
+                return Promise.resolve({ ...data, id: savedUser.id });
+              }
+
+              return Promise.resolve(data);
+            },
+          ),
+        };
+
+        return callback(manager);
+      });
+
+      signAsyncMock
+        .mockResolvedValueOnce('jwt-access-token')
+        .mockResolvedValueOnce(RAW_REFRESH_TOKEN);
+
+      createSessionMock.mockResolvedValue(buildSession({ user: savedUser }));
+
+      const result = await authService.register(
+        {
+          name: 'Juan Pérez',
+          email: 'Juan@Example.com',
+          phone: '+54 9 11 1234-5678',
+          password: 'PassWord23!',
+        },
+        metadata,
+      );
+
+      expect(result).toEqual({
+        user: {
+          id: savedUser.id,
+          name: savedUser.name,
+          email: savedUser.email,
+          role: RoleName.CLIENT,
+        },
+        token: 'jwt-access-token',
+      });
+
+      expect(findOneMock).toHaveBeenCalledWith({
+        where: { email: 'juan@example.com' },
+        withDeleted: true,
+      });
+      expect(findOneByRoleMock).toHaveBeenCalledWith({ name: RoleName.CLIENT });
+      expect(createSessionMock).toHaveBeenCalled();
+    });
+
+    it('debe lanzar ConflictException si el email ya existe', async () => {
+      findOneMock.mockResolvedValue(buildUser());
+
+      await expect(
+        authService.register(
+          {
+            name: 'Juan Pérez',
+            email: 'usuario@aislafriopro.com',
+            phone: '+54 9 11 1234-5678',
+            password: 'PassWord23!',
+          },
+          metadata,
+        ),
+      ).rejects.toThrow(ConflictException);
+
+      await expect(
+        authService.register(
+          {
+            name: 'Juan Pérez',
+            email: 'usuario@aislafriopro.com',
+            phone: '+54 9 11 1234-5678',
+            password: 'PassWord23!',
+          },
+          metadata,
+        ),
+      ).rejects.toThrow('Email ya registrado');
+    });
+
+    it('debe lanzar NotFoundException si no existe el rol CLIENT', async () => {
+      findOneMock.mockResolvedValue(null);
+      findOneByRoleMock.mockResolvedValue(null);
+
+      await expect(
+        authService.register(
+          {
+            name: 'Juan Pérez',
+            email: 'nuevo@example.com',
+            phone: '+54 9 11 1234-5678',
+            password: 'PassWord23!',
+          },
+          metadata,
+        ),
+      ).rejects.toThrow(NotFoundException);
+    });
   });
 });
