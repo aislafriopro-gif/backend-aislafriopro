@@ -100,6 +100,7 @@ describe('QuoteRequestsController (integration)', () => {
       email: 'maria.perez@example.com',
       phone: '+54 9 11 1234 5678',
       serviceId: '123e4567-e89b-42d3-a456-426614174000',
+      materials: 'Aislación para techo metálico',
       message: 'Necesitamos una cotización para instalar un aire acondicionado.',
     },
     {
@@ -107,6 +108,7 @@ describe('QuoteRequestsController (integration)', () => {
       email: 'jose.alvarez@example.com',
       phone: '+1 (555) 123-4567',
       serviceId: '123e4567-e89b-42d3-a456-426614174000',
+      materials: 'Paneles de vidrio templado',
       message: 'Presupuesto para obra comercial con instalación y mantenimiento.',
     },
     {
@@ -114,6 +116,7 @@ describe('QuoteRequestsController (integration)', () => {
       email: 'ana.nunez@example.com',
       phone: '1123456789',
       serviceId: '123e4567-e89b-42d3-a456-426614174000',
+      materials: 'x'.repeat(1000),
       message: 'x'.repeat(1000),
     },
   ])('crea una solicitud válida con datos variados', async (body) => {
@@ -138,7 +141,43 @@ describe('QuoteRequestsController (integration)', () => {
         email: body.email,
         phone: body.phone,
         message: body.message,
+        materials: body.materials,
         service: expect.objectContaining({ id: body.serviceId }),
+        status: QuoteRequestStatus.NEW,
+      }),
+    );
+  });
+
+  it('crea una solicitud válida sin serviceId', async () => {
+    const body = {
+      name: 'Laura Gómez',
+      email: 'laura.gomez@example.com',
+      phone: '+54 9 11 9876-5432',
+      materials: 'Requiere paneles de aluminio y juntas de goma',
+      message: 'Necesitamos una cotización para un proyecto de climatización. ',
+    };
+
+    const response = await request(app.getHttpServer())
+      .post('/api/v1/quote-requests')
+      .send(body)
+      .expect(HttpStatus.CREATED);
+
+    expect(response.body).toEqual(
+      expect.objectContaining({
+        id: expect.any(String),
+        status: QuoteRequestStatus.NEW,
+        message: 'Solicitud de cotización creada correctamente.',
+      }),
+    );
+    expect(serviceRepository.findOne).not.toHaveBeenCalled();
+    expect(quoteRequestRepository.create).toHaveBeenCalledWith(
+      expect.objectContaining({
+        name: body.name,
+        email: body.email,
+        phone: body.phone,
+        materials: body.materials,
+        message: body.message.trim(),
+        service: null,
         status: QuoteRequestStatus.NEW,
       }),
     );

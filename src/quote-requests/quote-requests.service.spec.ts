@@ -15,6 +15,7 @@ const buildValidDto = (
     email: 'maria.perez@example.com',
     phone: '+54 9 11 1234-5678',
     serviceId: 'a1b2c3d4-e5f6-7890-abcd-ef1234567890',
+    materials: 'Necesitamos aislamiento para cubierta metálica.',
     message: 'Necesitamos una cotización para instalar un aire acondicionado.',
     ...overrides,
   });
@@ -76,7 +77,6 @@ describe('QuoteRequestsService', () => {
       ['name', 'name'],
       ['email', 'email'],
       ['phone', 'phone'],
-      ['serviceId', 'serviceId'],
       ['message', 'message'],
     ])('debe exigir el campo %s cuando falta', async (_, property) => {
       const dto = buildValidDto({
@@ -86,6 +86,14 @@ describe('QuoteRequestsService', () => {
       const errors = await validate(dto);
 
       expect(errors.some((error) => error.property === property)).toBe(true);
+    });
+
+    it('debe aceptar un dto sin serviceId', async () => {
+      const dto = buildValidDto({ serviceId: undefined });
+
+      const errors = await validate(dto);
+
+      expect(errors.some((error) => error.property === 'serviceId')).toBe(false);
     });
 
     const maxLengthCases: Array<
@@ -110,7 +118,7 @@ describe('QuoteRequestsService', () => {
       },
     );
 
-    it('debe rechazar un serviceId con UUID inválido', async () => {
+    it('debe rechazar un serviceId con UUID inválido cuando se envía', async () => {
       const dto = buildValidDto({ serviceId: 'not-a-uuid' });
 
       const errors = await validate(dto);
@@ -152,6 +160,28 @@ describe('QuoteRequestsService', () => {
           updatedAt: expect.any(Date),
           status: 'NEW',
           service,
+        }),
+      );
+    });
+
+    it('debe crear la solicitud sin servicio cuando no llega serviceId', async () => {
+      const dto = buildValidDto({ serviceId: undefined, materials: 'Lamina de acero galvanizada' });
+      const result = await quoteRequestsService.create(dto);
+
+      expect(serviceRepository.findOne).not.toHaveBeenCalled();
+      expect(quoteRequestRepository.create).toHaveBeenCalledWith(
+        expect.objectContaining({
+          name: dto.name,
+          materials: 'Lamina de acero galvanizada',
+          service: null,
+          status: 'NEW',
+        }),
+      );
+      expect(result).toEqual(
+        expect.objectContaining({
+          status: 'NEW',
+          materials: 'Lamina de acero galvanizada',
+          service: null,
         }),
       );
     });
