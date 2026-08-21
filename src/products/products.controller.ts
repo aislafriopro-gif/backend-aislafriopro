@@ -137,7 +137,7 @@ export class ProductsController {
   @ApiConsumes('multipart/form-data')
   @ApiOperation({
     summary:
-      'Editar un producto (sin modificar status ni publicación) e incorporar nuevas imágenes (ADMIN)',
+      'Editar un producto (sin modificar status ni publicación) e incorporar nuevas imágenes (ADMIN). Los campos enviados vacíos se ignoran. Se requiere al menos 1 campo con valor o nuevas imágenes.',
   })
   @ApiParam({ name: 'id', type: 'string', format: 'uuid' })
   @ApiBody({
