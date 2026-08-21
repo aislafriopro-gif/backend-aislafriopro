@@ -1,9 +1,10 @@
 import { Injectable, NotFoundException } from '@nestjs/common';
 import { InjectRepository } from '@nestjs/typeorm';
 import { Repository } from 'typeorm';
+
 import { QuoteRequest } from '../quote-requests/entities/quote-request.entity';
-import { Client } from './entities/client.entity';
 import { ClientMeResponseDto } from './dto/client-me-response.dto';
+import { Client } from './entities/client.entity';
 
 @Injectable()
 export class ClientsService {
@@ -47,7 +48,7 @@ export class ClientsService {
       },
       quoteRequests: quoteRequests.map((quoteRequest) => ({
         id: quoteRequest.id,
-        serviceName: quoteRequest.service.name,
+        serviceName: quoteRequest.service?.name ?? 'Sin servicio',
         message: quoteRequest.message,
         status: quoteRequest.status,
         createdAt: quoteRequest.createdAt,
