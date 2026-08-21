@@ -2,14 +2,20 @@ import { HttpStatus, INestApplication, ValidationPipe } from '@nestjs/common';
 import { Test, TestingModule } from '@nestjs/testing';
 import { getRepositoryToken } from '@nestjs/typeorm';
 // supertest is consumed through CommonJS here to match the project's tsconfig/runtime setup.
-// eslint-disable-next-line @typescript-eslint/no-var-requires
+
 const request = require('supertest');
 import { App } from 'supertest/types';
+import { JwtAuthGuard } from '../auth/guards/jwt-auth.guard';
+import { RolesGuard } from '../common/guards/roles.guard';
 import { GlobalExceptionFilter } from '../common/filters/global-exception.filter';
 import { QuoteRequestsController } from './quote-requests.controller';
 import { QuoteRequestsService } from './quote-requests.service';
-import { QuoteRequest, QuoteRequestStatus } from './entities/quote-request.entity';
+import {
+  QuoteRequest,
+  QuoteRequestStatus,
+} from './entities/quote-request.entity';
 import { Service } from '../services/entities/service.entity';
+import { QuoteRequestNote } from './notes/quote-request-note.entity';
 
 const buildService = (overrides: Partial<Service> = {}): Service =>
   Object.assign(new Service(), {
@@ -27,17 +33,51 @@ const buildService = (overrides: Partial<Service> = {}): Service =>
     ...overrides,
   });
 
+const buildQuoteRequest = (
+  overrides: Partial<QuoteRequest> = {},
+): QuoteRequest =>
+  Object.assign(new QuoteRequest(), {
+    id: 'b2c3d4e5-f6a7-4890-bcde-f1234567890a',
+    name: 'María Pérez',
+    email: 'maria.perez@example.com',
+    phone: '+54 9 11 1234 5678',
+    service: buildService(),
+    message: 'Necesitamos una cotización para instalar un aire acondicionado.',
+    status: QuoteRequestStatus.NEW,
+    notes: [],
+    createdAt: new Date('2026-01-01T10:00:00.000Z'),
+    updatedAt: new Date('2026-01-01T10:00:00.000Z'),
+    ...overrides,
+  });
+
 describe('QuoteRequestsController (integration)', () => {
   let app: INestApplication<App>;
   let quoteRequestRepository: {
     create: jest.Mock;
     save: jest.Mock;
+    createQueryBuilder: jest.Mock;
   };
   let serviceRepository: {
     findOne: jest.Mock;
   };
+  let quoteRequestNoteRepository: {
+    create: jest.Mock;
+    save: jest.Mock;
+  };
+  let getManyAndCountMock: jest.Mock;
 
   beforeEach(async () => {
+    getManyAndCountMock = jest.fn().mockResolvedValue([[], 0]);
+
+    const quoteRequestQueryBuilder = {
+      leftJoinAndSelect: jest.fn().mockReturnThis(),
+      orderBy: jest.fn().mockReturnThis(),
+      skip: jest.fn().mockReturnThis(),
+      take: jest.fn().mockReturnThis(),
+      andWhere: jest.fn().mockReturnThis(),
+      getManyAndCount: getManyAndCountMock,
+    };
+
     quoteRequestRepository = {
       create: jest.fn((input) => Object.assign(new QuoteRequest(), input)),
       save: jest.fn((quoteRequest: QuoteRequest) =>
@@ -51,10 +91,23 @@ describe('QuoteRequestsController (integration)', () => {
           }),
         ),
       ),
+      createQueryBuilder: jest.fn().mockReturnValue(quoteRequestQueryBuilder),
     };
 
     serviceRepository = {
       findOne: jest.fn().mockResolvedValue(buildService()),
+    };
+
+    quoteRequestNoteRepository = {
+      create: jest.fn((input) => Object.assign(new QuoteRequestNote(), input)),
+      save: jest.fn((note: QuoteRequestNote) =>
+        Promise.resolve(
+          Object.assign(new QuoteRequestNote(), note, {
+            id: note.id ?? 'c3d4e5f6-a7b8-4901-cdef-1234567890ab',
+            createdAt: new Date('2026-01-01T10:00:00.000Z'),
+          }),
+        ),
+      ),
     };
 
     const moduleFixture: TestingModule = await Test.createTestingModule({
@@ -66,11 +119,19 @@ describe('QuoteRequestsController (integration)', () => {
           useValue: quoteRequestRepository,
         },
         {
+          provide: getRepositoryToken(QuoteRequestNote),
+          useValue: quoteRequestNoteRepository,
+        },
+        {
           provide: getRepositoryToken(Service),
           useValue: serviceRepository,
         },
       ],
     })
+      .overrideGuard(JwtAuthGuard)
+      .useValue({ canActivate: () => true })
+      .overrideGuard(RolesGuard)
+      .useValue({ canActivate: () => true })
       .compile();
 
     app = moduleFixture.createNestApplication();
@@ -190,7 +251,8 @@ describe('QuoteRequestsController (integration)', () => {
         email: 'maria.perez@example.com',
         phone: '+54 9 11 1234 5678',
         serviceId: '123e4567-e89b-42d3-a456-426614174000',
-        message: 'Necesitamos una cotización para instalar un aire acondicionado.',
+        message:
+          'Necesitamos una cotización para instalar un aire acondicionado.',
       })
       .expect(HttpStatus.BAD_REQUEST);
 
@@ -208,7 +270,9 @@ describe('QuoteRequestsController (integration)', () => {
 
   it('devuelve un 500 amigable si falla el guardado', async () => {
     serviceRepository.findOne.mockResolvedValue(buildService());
-    quoteRequestRepository.save.mockRejectedValue(new Error('db connection lost'));
+    quoteRequestRepository.save.mockRejectedValue(
+      new Error('db connection lost'),
+    );
 
     const response = await request(app.getHttpServer())
       .post('/api/v1/quote-requests')
@@ -217,7 +281,8 @@ describe('QuoteRequestsController (integration)', () => {
         email: 'maria.perez@example.com',
         phone: '+54 9 11 1234 5678',
         serviceId: '123e4567-e89b-42d3-a456-426614174000',
-        message: 'Necesitamos una cotización para instalar un aire acondicionado.',
+        message:
+          'Necesitamos una cotización para instalar un aire acondicionado.',
       })
       .expect(HttpStatus.INTERNAL_SERVER_ERROR);
 
@@ -230,5 +295,62 @@ describe('QuoteRequestsController (integration)', () => {
         method: 'POST',
       }),
     );
+  });
+
+  describe('GET /api/v1/quote-requests', () => {
+    it('debe retornar un listado paginado vacío por defecto', async () => {
+      const response = await request(app.getHttpServer())
+        .get('/api/v1/quote-requests')
+        .expect(HttpStatus.OK);
+
+      expect(response.body).toEqual({
+        data: [],
+        total: 0,
+        page: 1,
+        limit: 10,
+        totalPages: 0,
+      });
+    });
+
+    it('debe retornar solicitudes y reflejar el total', async () => {
+      const quoteRequests = [
+        buildQuoteRequest({ id: 'qr-1' }),
+        buildQuoteRequest({ id: 'qr-2' }),
+      ];
+      getManyAndCountMock.mockResolvedValue([quoteRequests, 2]);
+
+      const response = await request(app.getHttpServer())
+        .get('/api/v1/quote-requests')
+        .expect(HttpStatus.OK);
+
+      expect(response.body).toEqual(
+        expect.objectContaining({
+          data: expect.any(Array),
+          total: 2,
+          page: 1,
+          limit: 10,
+          totalPages: 1,
+        }),
+      );
+      expect(response.body.data).toHaveLength(2);
+    });
+
+    it('debe aplicar el filtro por estado', async () => {
+      getManyAndCountMock.mockResolvedValue([
+        [buildQuoteRequest({ status: QuoteRequestStatus.RESPONDED })],
+        1,
+      ]);
+
+      const response = await request(app.getHttpServer())
+        .get('/api/v1/quote-requests?status=RESPONDED')
+        .expect(HttpStatus.OK);
+
+      expect(response.body).toEqual(
+        expect.objectContaining({
+          total: 1,
+          page: 1,
+        }),
+      );
+    });
   });
 });

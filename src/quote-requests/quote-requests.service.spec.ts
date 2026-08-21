@@ -2,9 +2,14 @@ import 'reflect-metadata';
 import { BadRequestException } from '@nestjs/common';
 import { validate } from 'class-validator';
 import { IsNull, Repository } from 'typeorm';
+import { PaginationParamsDto, PaginatedResponse } from '../common/pagination';
 import { Service } from '../services/entities/service.entity';
 import { CreateQuoteRequestDto } from './dto/create-quote-request.dto';
-import { QuoteRequest } from './entities/quote-request.entity';
+import { QuoteRequestNote } from './notes/quote-request-note.entity';
+import {
+  QuoteRequest,
+  QuoteRequestStatus,
+} from './entities/quote-request.entity';
 import { QuoteRequestsService } from './quote-requests.service';
 
 const buildValidDto = (
@@ -20,18 +25,104 @@ const buildValidDto = (
     ...overrides,
   });
 
+const buildService = (overrides: Partial<Service> = {}): Service =>
+  Object.assign(new Service(), {
+    id: '123e4567-e89b-42d3-a456-426614174000',
+    name: 'Aislación térmica',
+    slug: 'aislacion-termica',
+    description: 'Aislación para techos y paredes',
+    shortDescription: 'Aislación profesional',
+    imageUrl: 'https://example.com/image.jpg',
+    isActive: true,
+    displayOrder: 1,
+    createdAt: new Date(),
+    updatedAt: new Date(),
+    deletedAt: null,
+    ...overrides,
+  });
+
+const buildQuoteRequest = (
+  overrides: Partial<QuoteRequest> = {},
+): QuoteRequest =>
+  Object.assign(new QuoteRequest(), {
+    id: 'b2c3d4e5-f6a7-4890-bcde-f1234567890a',
+    name: 'María Pérez',
+    email: 'maria.perez@example.com',
+    phone: '+54 9 11 1234-5678',
+    service: buildService(),
+    message: 'Necesitamos una cotización para instalar un aire acondicionado.',
+    status: QuoteRequestStatus.NEW,
+    notes: [],
+    createdAt: new Date(),
+    updatedAt: new Date(),
+    ...overrides,
+  });
+
+const buildPagination = (
+  overrides: Partial<PaginationParamsDto> = {},
+): PaginationParamsDto => {
+  const dto = new PaginationParamsDto();
+  dto.page = 1;
+  dto.limit = 10;
+  return Object.assign(dto, overrides);
+};
+
+const buildPaginatedResponse = <T>(
+  data: T[],
+  total: number,
+): PaginatedResponse<T> => ({
+  data,
+  total,
+  page: 1,
+  limit: 10,
+  totalPages: total === 0 ? 0 : Math.ceil(total / 10),
+});
+
 describe('QuoteRequestsService', () => {
   let quoteRequestRepository: {
     create: jest.Mock;
     save: jest.Mock;
+    createQueryBuilder: jest.Mock;
   };
   let serviceRepository: {
     findOne: jest.Mock;
   };
+  let quoteRequestNoteRepository: {
+    create: jest.Mock;
+    save: jest.Mock;
+  };
   let quoteRequestsService: QuoteRequestsService;
+
+  let createQueryBuilderMock: jest.Mock;
+  let leftJoinAndSelectMock: jest.Mock;
+  let orderByMock: jest.Mock;
+  let skipMock: jest.Mock;
+  let takeMock: jest.Mock;
+  let andWhereMock: jest.Mock;
+  let getManyAndCountMock: jest.Mock;
 
   beforeEach(() => {
     jest.resetAllMocks();
+
+    leftJoinAndSelectMock = jest.fn().mockReturnThis();
+    orderByMock = jest.fn().mockReturnThis();
+    skipMock = jest.fn().mockReturnThis();
+    takeMock = jest.fn().mockReturnThis();
+    andWhereMock = jest.fn().mockReturnThis();
+    getManyAndCountMock = jest.fn();
+
+    const quoteRequestQueryBuilder = {
+      leftJoinAndSelect: leftJoinAndSelectMock,
+      orderBy: orderByMock,
+      skip: skipMock,
+      take: takeMock,
+      andWhere: andWhereMock,
+      getManyAndCount: getManyAndCountMock,
+    };
+
+    createQueryBuilderMock = jest
+      .fn()
+      .mockReturnValue(quoteRequestQueryBuilder);
 
     quoteRequestRepository = {
       create: jest.fn((input) => Object.assign(new QuoteRequest(), input)),
@@ -44,14 +135,28 @@ describe('QuoteRequestsService', () => {
           }),
         ),
       ),
+      createQueryBuilder: createQueryBuilderMock,
     };
 
     serviceRepository = {
       findOne: jest.fn(),
     };
 
+    quoteRequestNoteRepository = {
+      create: jest.fn((input) => Object.assign(new QuoteRequestNote(), input)),
+      save: jest.fn((note: QuoteRequestNote) =>
+        Promise.resolve(
+          Object.assign(new QuoteRequestNote(), note, {
+            id: note.id ?? 'c3d4e5f6-a7b8-4901-cdef-1234567890ab',
+            createdAt: new Date(),
+          }),
+        ),
+      ),
+    };
+
     quoteRequestsService = new QuoteRequestsService(
       quoteRequestRepository as unknown as Repository<QuoteRequest>,
+      quoteRequestNoteRepository as unknown as Repository<QuoteRequestNote>,
       serviceRepository as unknown as Repository<Service>,
     );
   });
@@ -81,7 +186,7 @@ describe('QuoteRequestsService', () => {
     ])('debe exigir el campo %s cuando falta', async (_, property) => {
       const dto = buildValidDto({
         [property]: undefined,
-      } as Partial<CreateQuoteRequestDto>);
+      });
 
       const errors = await validate(dto);
 
@@ -110,7 +215,7 @@ describe('QuoteRequestsService', () => {
       async (_, property, value) => {
         const dto = buildValidDto({
           [property]: value,
-        } as Partial<CreateQuoteRequestDto>);
+        });
 
         const errors = await validate(dto);
 
@@ -200,6 +305,56 @@ describe('QuoteRequestsService', () => {
       expect(serviceRepository.findOne).toHaveBeenCalledWith({
         where: { id: dto.serviceId, deletedAt: IsNull() },
       });
+    });
+  });
+
+  describe('findAll', () => {
+    it('debe retornar una lista paginada de solicitudes ordenadas por createdAt DESC', async () => {
+      const quoteRequests = [buildQuoteRequest(), buildQuoteRequest()];
+      getManyAndCountMock.mockResolvedValue([quoteRequests, 2]);
+
+      const pagination = buildPagination();
+      const result = await quoteRequestsService.findAll(pagination);
+
+      expect(result).toEqual(buildPaginatedResponse(quoteRequests, 2));
+      expect(createQueryBuilderMock).toHaveBeenCalledWith('quoteRequest');
+      expect(leftJoinAndSelectMock).toHaveBeenCalledWith(
+        'quoteRequest.service',
+        'service',
+      );
+      expect(leftJoinAndSelectMock).toHaveBeenCalledWith(
+        'quoteRequest.notes',
+        'notes',
+      );
+      expect(orderByMock).toHaveBeenCalledWith(
+        'quoteRequest.createdAt',
+        'DESC',
+      );
+      expect(skipMock).toHaveBeenCalledWith(0);
+      expect(takeMock).toHaveBeenCalledWith(10);
+    });
+
+    it('debe aplicar filtro por estado', async () => {
+      getManyAndCountMock.mockResolvedValue([[], 0]);
+      const pagination = buildPagination();
+
+      await quoteRequestsService.findAll(pagination, {
+        status: QuoteRequestStatus.RESPONDED,
+      });
+
+      expect(andWhereMock).toHaveBeenCalledWith(
+        'quoteRequest.status = :status',
+        { status: QuoteRequestStatus.RESPONDED },
+      );
+    });
+
+    it('debe retornar paginación vacía cuando no hay resultados', async () => {
+      getManyAndCountMock.mockResolvedValue([[], 0]);
+
+      const pagination = buildPagination();
+      const result = await quoteRequestsService.findAll(pagination);
+
+      expect(result).toEqual(buildPaginatedResponse([], 0));
     });
   });
 });

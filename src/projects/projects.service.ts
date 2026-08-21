@@ -1,0 +1,528 @@
+import {
+  BadRequestException,
+  ConflictException,
+  Injectable,
+  NotFoundException,
+} from '@nestjs/common';
+import { InjectRepository } from '@nestjs/typeorm';
+import { FindOptionsWhere, ILike, In, IsNull, Repository } from 'typeorm';
+import {
+  PaginatedResponse,
+  buildPaginatedResponse,
+} from '../common/pagination';
+import {
+  CloudinaryService,
+  UploadImageFile,
+} from '../media/cloudinary.service';
+import { Media } from '../media/entities/media.entity';
+import { Service } from '../services/entities/service.entity';
+import { User, UserStatus } from '../users/entities/user.entity';
+import 'multer';
+import { CreateProjectDto } from './dto/create-project.dto';
+import { FindProjectsQueryDto } from './dto/find-projects-query.dto';
+import { ProjectPublicResponseDto } from './dto/project-public-response.dto';
+import { UpdateProjectDto } from './dto/update-project.dto';
+import { Project } from './entities/project.entity';
+import {
+  ProjectImage,
+  ProjectImageType,
+} from './media/entities/project-image.entity';
+import { RoleName } from '../roles/entities/roles.entity';
+
+@Injectable()
+export class ProjectsService {
+  constructor(
+    @InjectRepository(Project)
+    private readonly projectRepository: Repository<Project>,
+    @InjectRepository(Service)
+    private readonly serviceRepository: Repository<Service>,
+    @InjectRepository(User)
+    private readonly userRepository: Repository<User>,
+    @InjectRepository(ProjectImage)
+    private readonly projectImageRepository: Repository<ProjectImage>,
+    @InjectRepository(Media)
+    private readonly mediaRepository: Repository<Media>,
+    private readonly cloudinaryService: CloudinaryService,
+  ) {}
+
+  async create(
+    createProjectDto: CreateProjectDto,
+    files?: {
+      coverFile?: Express.Multer.File[];
+      beforeFile?: Express.Multer.File[];
+      afterFile?: Express.Multer.File[];
+    },
+    uploadedById?: string | null,
+  ): Promise<Project> {
+    await this.ensureSlugAvailable(createProjectDto.slug);
+
+    if (createProjectDto.clientId) {
+      await this.validateClient(createProjectDto.clientId);
+    }
+
+    const projectData = { ...createProjectDto };
+    delete projectData.coverFile;
+    delete projectData.beforeFile;
+    delete projectData.afterFile;
+
+    const project = this.projectRepository.create(projectData);
+
+    if (createProjectDto.serviceIds?.length) {
+      project.services = await this.validateServices(
+        createProjectDto.serviceIds,
+      );
+    }
+
+    const savedProject = await this.projectRepository.save(project);
+
+    if (files) {
+      const imageInputs: Array<{
+        type: ProjectImageType;
+        file: Express.Multer.File;
+      }> = [];
+
+      const entries: Array<{
+        type: ProjectImageType;
+        fileArr?: Express.Multer.File[];
+      }> = [
+        { type: ProjectImageType.COVER, fileArr: files.coverFile },
+        { type: ProjectImageType.BEFORE, fileArr: files.beforeFile },
+        { type: ProjectImageType.AFTER, fileArr: files.afterFile },
+      ];
+
+      for (const entry of entries) {
+        const file = entry.fileArr?.[0];
+        if (file) {
+          this.validateImageFile(file);
+          imageInputs.push({ type: entry.type, file });
+        }
+      }
+
+      if (imageInputs.length > 0) {
+        await this.attachUploadedImages(
+          savedProject.id,
+          imageInputs,
+          uploadedById,
+        );
+      }
+    }
+
+    return this.projectRepository.findOneOrFail({
+      where: { id: savedProject.id },
+      relations: ['images', 'images.media', 'services', 'client'],
+    });
+  }
+
+  private validateImageFile(file: Express.Multer.File): void {
+    const MAX_SIZE = 5 * 1024 * 1024;
+    const ALLOWED_TYPES = /^image\/(jpeg|png|webp|gif)$/;
+
+    if (file.size > MAX_SIZE) {
+      throw new BadRequestException(
+        `El archivo "${file.originalname}" supera el tamaño máximo de 5 MB.`,
+      );
+    }
+
+    if (!ALLOWED_TYPES.test(file.mimetype)) {
+      throw new BadRequestException(
+        `El archivo "${file.originalname}" tiene un tipo no permitido (${file.mimetype}). Se permiten: jpeg, png, webp, gif.`,
+      );
+    }
+  }
+
+  private async attachUploadedImages(
+    projectId: string,
+    imageInputs: Array<{
+      type: ProjectImageType;
+      file: Express.Multer.File;
+    }>,
+    uploadedById?: string | null,
+  ): Promise<void> {
+    for (const input of imageInputs) {
+      try {
+        const uploadResult = await this.cloudinaryService.uploadImage(
+          {
+            buffer: input.file.buffer,
+            mimetype: input.file.mimetype,
+            size: input.file.size,
+            originalname: input.file.originalname,
+          },
+          uploadedById,
+        );
+
+        await this.projectImageRepository.save(
+          this.projectImageRepository.create({
+            projectId,
+            mediaId: uploadResult.id,
+            type: input.type,
+            displayOrder: 1,
+          }),
+        );
+      } catch (error) {
+        console.error(
+          `Error uploading ${input.type} image for project ${projectId}. El proyecto se creó sin esta imagen.`,
+          error,
+        );
+      }
+    }
+  }
+
+  async findAll(
+    query: FindProjectsQueryDto,
+  ): Promise<PaginatedResponse<ProjectPublicResponseDto>> {
+    const where: FindOptionsWhere<Project> | FindOptionsWhere<Project>[] =
+      this.buildWhereClause(query, { activeOnly: true });
+
+    const [data, total] = await this.projectRepository.findAndCount({
+      where,
+      relations: ['images', 'images.media', 'services', 'client'],
+      order: { createdAt: 'DESC' },
+      skip: query.offset,
+      take: query.limit,
+    });
+
+    const mapped = data.map((project) => this.mapToPublicResponse(project));
+    return buildPaginatedResponse(mapped, total, query.page, query.limit);
+  }
+
+  async findAllAdmin(
+    query: FindProjectsQueryDto,
+  ): Promise<PaginatedResponse<ProjectPublicResponseDto>> {
+    const where: FindOptionsWhere<Project> | FindOptionsWhere<Project>[] =
+      this.buildWhereClause(query, { activeOnly: false });
+
+    const [data, total] = await this.projectRepository.findAndCount({
+      where,
+      withDeleted: true,
+      relations: ['images', 'images.media', 'services', 'client'],
+      order: { createdAt: 'DESC' },
+      skip: query.offset,
+      take: query.limit,
+    });
+
+    const mapped = data.map((project) => this.mapToPublicResponse(project));
+    return buildPaginatedResponse(mapped, total, query.page, query.limit);
+  }
+
+  async findOne(id: string): Promise<ProjectPublicResponseDto> {
+    const project = await this.projectRepository.findOne({
+      where: { id, deletedAt: IsNull() },
+      relations: ['images', 'images.media', 'services', 'client'],
+    });
+
+    if (!project) {
+      throw new NotFoundException(`Project with id "${id}" not found`);
+    }
+
+    return this.mapToPublicResponse(project);
+  }
+
+  async findOneBySlug(slug: string): Promise<ProjectPublicResponseDto> {
+    const project = await this.projectRepository.findOne({
+      where: { slug, deletedAt: IsNull() },
+      relations: ['images', 'images.media', 'services', 'client'],
+    });
+
+    if (!project) {
+      throw new NotFoundException(`Project with slug "${slug}" not found`);
+    }
+
+    return this.mapToPublicResponse(project);
+  }
+
+  async update(
+    id: string,
+    updateProjectDto: UpdateProjectDto,
+    files?: {
+      coverFile?: Express.Multer.File[];
+      beforeFile?: Express.Multer.File[];
+      afterFile?: Express.Multer.File[];
+    },
+    uploadedById?: string | null,
+  ): Promise<Project> {
+    const project = await this.projectRepository.findOne({
+      where: { id, deletedAt: IsNull() },
+      relations: ['services'],
+    });
+
+    if (!project) {
+      throw new NotFoundException(`Project with id "${id}" not found`);
+    }
+
+    if (updateProjectDto.slug !== undefined) {
+      await this.ensureSlugAvailable(updateProjectDto.slug, id);
+    }
+
+    if (updateProjectDto.clientId) {
+      await this.validateClient(updateProjectDto.clientId);
+    }
+
+    if (updateProjectDto.serviceIds !== undefined) {
+      project.services = await this.validateServices(
+        updateProjectDto.serviceIds,
+      );
+    }
+
+    const updateData = { ...updateProjectDto };
+    delete updateData.coverFile;
+    delete updateData.beforeFile;
+    delete updateData.afterFile;
+    delete updateData.serviceIds;
+
+    Object.assign(project, updateData);
+    const savedProject = await this.projectRepository.save(project);
+
+    if (files) {
+      const imageInputs: Array<{
+        type: ProjectImageType;
+        file: Express.Multer.File;
+      }> = [];
+
+      const entries: Array<{
+        type: ProjectImageType;
+        fileArr?: Express.Multer.File[];
+      }> = [
+        { type: ProjectImageType.COVER, fileArr: files.coverFile },
+        { type: ProjectImageType.BEFORE, fileArr: files.beforeFile },
+        { type: ProjectImageType.AFTER, fileArr: files.afterFile },
+      ];
+
+      for (const entry of entries) {
+        const file = entry.fileArr?.[0];
+        if (file) {
+          this.validateImageFile(file);
+          imageInputs.push({ type: entry.type, file });
+        }
+      }
+
+      if (imageInputs.length > 0) {
+        await this.attachAndReorderUploadedImages(
+          savedProject.id,
+          imageInputs,
+          uploadedById,
+        );
+      }
+    }
+
+    return savedProject;
+  }
+
+  async remove(id: string): Promise<void> {
+    const project = await this.projectRepository.findOne({
+      where: { id, deletedAt: IsNull() },
+    });
+
+    if (!project) {
+      throw new NotFoundException(`Project with id "${id}" not found`);
+    }
+
+    await this.projectRepository.softDelete(id);
+  }
+
+  async restore(id: string): Promise<Project> {
+    const project = await this.projectRepository.findOne({
+      where: { id },
+      withDeleted: true,
+    });
+
+    if (!project) {
+      throw new NotFoundException(`Project with id "${id}" not found`);
+    }
+
+    if (project.deletedAt === null || project.deletedAt === undefined) {
+      throw new ConflictException(`Project with id "${id}" is not deleted`);
+    }
+
+    await this.ensureSlugAvailable(project.slug, id);
+
+    project.deletedAt = null;
+    return this.projectRepository.save(project);
+  }
+
+  private async attachAndReorderUploadedImages(
+    projectId: string,
+    imageInputs: Array<{
+      type: ProjectImageType;
+      file: Express.Multer.File;
+    }>,
+    uploadedById?: string | null,
+  ): Promise<void> {
+    for (const input of imageInputs) {
+      try {
+        const uploadResult = await this.cloudinaryService.uploadImage(
+          {
+            buffer: input.file.buffer,
+            mimetype: input.file.mimetype,
+            size: input.file.size,
+            originalname: input.file.originalname,
+          },
+          uploadedById,
+        );
+
+        await this.associateProjectImage(
+          projectId,
+          uploadResult.id,
+          input.type,
+        );
+      } catch (error) {
+        console.error(
+          `Error uploading ${input.type} image for project ${projectId}. El proyecto se actualizó sin esta imagen.`,
+          error,
+        );
+      }
+    }
+  }
+
+  private async associateProjectImage(
+    projectId: string,
+    mediaId: string,
+    type: ProjectImageType,
+  ): Promise<void> {
+    await this.projectImageRepository.increment(
+      { projectId, type },
+      'displayOrder',
+      1,
+    );
+
+    const image = this.projectImageRepository.create({
+      projectId,
+      mediaId,
+      type,
+      displayOrder: 1,
+    });
+    await this.projectImageRepository.save(image);
+  }
+
+  private buildWhereClause(
+    query: FindProjectsQueryDto,
+    options: { activeOnly: boolean },
+  ): FindOptionsWhere<Project> | FindOptionsWhere<Project>[] {
+    const baseWhere: FindOptionsWhere<Project> = {};
+
+    if (options.activeOnly) {
+      baseWhere.deletedAt = IsNull();
+    }
+
+    if (query.location) {
+      baseWhere.location = ILike(`%${query.location}%`);
+    }
+
+    if (query.clientId) {
+      baseWhere.clientId = query.clientId;
+    }
+
+    if (query.search) {
+      return [
+        { ...baseWhere, title: ILike(`%${query.search}%`) },
+        { ...baseWhere, description: ILike(`%${query.search}%`) },
+      ];
+    }
+
+    return baseWhere;
+  }
+
+  private async ensureSlugAvailable(
+    slug: string,
+    excludedId?: string,
+  ): Promise<void> {
+    const existing = await this.projectRepository.findOne({
+      where: { slug, deletedAt: IsNull() },
+    });
+
+    if (existing && existing.id !== excludedId) {
+      throw new ConflictException(`Project slug "${slug}" is already in use`);
+    }
+  }
+
+  private async validateServices(serviceIds: string[]): Promise<Service[]> {
+    const services = await this.serviceRepository.find({
+      where: { id: In(serviceIds) },
+      withDeleted: true,
+    });
+
+    const foundIds = new Set(services.map((service) => service.id));
+    const missingIds = serviceIds.filter((id) => !foundIds.has(id));
+
+    if (missingIds.length > 0) {
+      throw new NotFoundException(
+        `Services not found: ${missingIds.join(', ')}`,
+      );
+    }
+
+    const invalidServices = services
+      .filter((service) => !service.isActive || service.deletedAt !== null)
+      .map((service) => ({
+        id: service.id,
+        reason: !service.isActive
+          ? 'is inactive'
+          : `is soft deleted (deletedAt: ${service.deletedAt?.toISOString()})`,
+      }));
+
+    if (invalidServices.length > 0) {
+      const details = invalidServices
+        .map((service) => `${service.id} ${service.reason}`)
+        .join('; ');
+      throw new BadRequestException(
+        `Cannot associate inactive or deleted services: ${details}`,
+      );
+    }
+
+    return services;
+  }
+
+  private async validateClient(clientId: string): Promise<void> {
+    const user = await this.userRepository.findOne({
+      where: { id: clientId },
+      withDeleted: true,
+    });
+
+    if (!user) {
+      throw new NotFoundException(`Client with id "${clientId}" not found`);
+    }
+
+    if (user.deletedAt !== null && user.deletedAt !== undefined) {
+      throw new BadRequestException(
+        `Client with id "${clientId}" is soft deleted`,
+      );
+    }
+
+    if (user.status !== UserStatus.ACTIVE) {
+      throw new BadRequestException(
+        `Client with id "${clientId}" is not active (status: ${user.status})`,
+      );
+    }
+
+    if (user.role?.name !== RoleName.CLIENT) {
+      throw new BadRequestException(
+        `User with id "${clientId}" is not a client (role: ${user.role?.name})`,
+      );
+    }
+  }
+
+  private mapToPublicResponse(project: Project): ProjectPublicResponseDto {
+    return {
+      id: project.id,
+      title: project.title,
+      slug: project.slug,
+      description: project.description,
+      location: project.location,
+      completionDate: project.completionDate,
+      clientDisplayName: project.clientDisplayName,
+      services: project.services,
+      coverImage:
+        project.images?.find(
+          (i) => i.type === ProjectImageType.COVER && i.displayOrder === 1,
+        )?.media ?? null,
+      beforeImage:
+        project.images?.find(
+          (i) => i.type === ProjectImageType.BEFORE && i.displayOrder === 1,
+        )?.media ?? null,
+      afterImage:
+        project.images?.find(
+          (i) => i.type === ProjectImageType.AFTER && i.displayOrder === 1,
+        )?.media ?? null,
+      createdAt: project.createdAt,
+      updatedAt: project.updatedAt,
+    };
+  }
+}

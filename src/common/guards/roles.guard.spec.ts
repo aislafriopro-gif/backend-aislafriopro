@@ -92,4 +92,19 @@ describe('RolesGuard', () => {
 
     expect(guard.canActivate(context)).toBe(true);
   });
+
+  it.each([RoleName.ADMIN, RoleName.CLIENT, RoleName.TECHNICIAN])(
+    'debe permitir acceso al rol %s cuando está permitido',
+    (role) => {
+      const context = buildContext({
+        user: {
+          role,
+        },
+      });
+
+      jest.spyOn(reflector, 'getAllAndOverride').mockReturnValue([role]);
+
+      expect(guard.canActivate(context)).toBe(true);
+    },
+  );
 });
