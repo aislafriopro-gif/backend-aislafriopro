@@ -32,22 +32,31 @@ export class QuoteRequestsService {
   async create(
     createQuoteRequestDto: CreateQuoteRequestDto,
   ): Promise<QuoteRequest> {
-    const service = await this.serviceRepository.findOne({
-      where: { id: createQuoteRequestDto.serviceId, deletedAt: IsNull() },
-    });
+    const serviceId = createQuoteRequestDto.serviceId?.trim();
+    const materials = createQuoteRequestDto.materials?.trim();
+    const message = createQuoteRequestDto.message.trim();
 
-    if (!service) {
-      throw new BadRequestException(
-        'El servicio indicado en serviceId no existe o no está disponible.',
-      );
+    let service: Service | null = null;
+
+    if (serviceId) {
+      service = await this.serviceRepository.findOne({
+        where: { id: serviceId, deletedAt: IsNull() },
+      });
+
+      if (!service) {
+        throw new BadRequestException(
+          'El servicio indicado en serviceId no existe o no está disponible.',
+        );
+      }
     }
 
     const quoteRequest = this.quoteRequestRepository.create({
-      name: createQuoteRequestDto.name,
-      email: createQuoteRequestDto.email,
-      phone: createQuoteRequestDto.phone,
+      name: createQuoteRequestDto.name.trim(),
+      email: createQuoteRequestDto.email.trim(),
+      phone: createQuoteRequestDto.phone.trim(),
       service,
-      message: createQuoteRequestDto.message,
+      message,
+      materials: materials || null,
       status: QuoteRequestStatus.NEW,
     });
 

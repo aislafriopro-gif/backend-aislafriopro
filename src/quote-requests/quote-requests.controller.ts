@@ -51,7 +51,7 @@ export class QuoteRequestsController {
   })
   @ApiResponse({
     status: HttpStatus.BAD_REQUEST,
-    description: 'Datos inválidos o serviceId no válido.',
+    description: 'Datos inválidos o serviceId no válido cuando se envía.',
   })
   async create(
     @Body() createQuoteRequestDto: CreateQuoteRequestDto,

@@ -34,13 +34,17 @@ export class QuoteRequest {
   @Column({ type: 'varchar', length: 50 })
   phone!: string;
 
-  @ManyToOne(() => Service, { eager: false, nullable: false })
+  @ManyToOne(() => Service, { eager: false, nullable: true })
   @JoinColumn({ name: 'service_id' })
-  service!: Service;
+  service!: Service | null;
 
   @Column({ type: 'text' })
   message!: string;
 
+  @Column({ type: 'text', nullable: true })
+  materials!: string | null;
+
+  @Column({ type: 'enum', enum: QuoteRequestStatus, default: QuoteRequestStatus.NEW })
   @Column({
     type: 'enum',
     enum: QuoteRequestStatus,
