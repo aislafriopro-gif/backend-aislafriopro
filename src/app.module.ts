@@ -18,6 +18,7 @@ import { SiteSettingsModule } from './site-settings/site-settings.module';
 import { CloudinaryModule } from './media/cloudinary.module';
 import { ProductsModule } from './products/products.module';
 import { ProjectsModule } from './projects/projects.module';
+import { ClientsModule } from './clients/clients.module';
 
 @Module({
   imports: [
@@ -63,6 +64,7 @@ import { ProjectsModule } from './projects/projects.module';
     CloudinaryModule,
     ProductsModule,
     ProjectsModule,
+    ClientsModule,
   ],
   controllers: [AppController],
   providers: [AppService],

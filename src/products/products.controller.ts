@@ -28,6 +28,7 @@ import { PaginatedResponse } from '../common/pagination';
 import { RoleName } from '../roles/entities/roles.entity';
 import 'multer';
 import { CreateProductDto } from './dto/create-product.dto';
+import { FindProductsAdminQueryDto } from './dto/find-products-admin-query.dto';
 import { FindProductsQueryDto } from './dto/find-products-query.dto';
 import { ProductPublicResponseDto } from './dto/product-public-response.dto';
 import { UpdateProductDto } from './dto/update-product.dto';
@@ -79,13 +80,19 @@ export class ProductsController {
     summary: 'Listar todos los productos incluyendo eliminados (ADMIN)',
   })
   async findAllAdmin(
-    @Query() query: FindProductsQueryDto,
-  ): Promise<PaginatedResponse<ProductPublicResponseDto>> {
+    @Query() query: FindProductsAdminQueryDto,
+  ): Promise<PaginatedResponse<Product>> {
     return this.productsService.findAllAdmin(query);
   }
 
   @Get()
   @ApiOperation({ summary: 'Listar productos publicados en la tienda' })
+  @ApiResponse({
+    status: 200,
+    description: 'Listado de productos publicados',
+    type: ProductPublicResponseDto,
+    isArray: true,
+  })
   async findAll(
     @Query() query: FindProductsQueryDto,
   ): Promise<PaginatedResponse<ProductPublicResponseDto>> {
@@ -97,6 +104,11 @@ export class ProductsController {
     summary: 'Obtener detalle de un producto publicado por slug',
   })
   @ApiParam({ name: 'slug', type: 'string' })
+  @ApiResponse({
+    status: 200,
+    description: 'Producto encontrado',
+    type: ProductPublicResponseDto,
+  })
   async findOneBySlug(
     @Param('slug') slug: string,
   ): Promise<ProductPublicResponseDto> {
@@ -104,20 +116,19 @@ export class ProductsController {
   }
 
   @Get(':id')
-  @Auth(RoleName.ADMIN)
   @ApiOperation({
-    summary: 'Obtener detalle completo de un producto (ADMIN)',
+    summary: 'Obtener detalle de un producto publicado',
   })
   @ApiParam({ name: 'id', type: 'string', format: 'uuid' })
   @ApiResponse({
     status: 200,
     description: 'Producto encontrado',
-    type: Product,
+    type: ProductPublicResponseDto,
   })
   async findOne(
     @Param('id', new ParseUUIDPipe()) id: string,
-  ): Promise<Product> {
-    return this.productsService.findOneAdmin(id);
+  ): Promise<ProductPublicResponseDto> {
+    return this.productsService.findOne(id);
   }
 
   @Patch(':id')
