@@ -108,7 +108,7 @@ export class ClientsService {
   ): ClientQuoteRequestResponseDto {
     return {
       id: quoteRequest.id,
-      serviceName: quoteRequest.service.name,
+      serviceName: quoteRequest.service?.name ?? 'Sin servicio',
       message: quoteRequest.message,
       status: quoteRequest.status,
       createdAt: quoteRequest.createdAt,

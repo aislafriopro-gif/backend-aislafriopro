@@ -80,6 +80,7 @@ describe('ClientsService', () => {
     phone: '+54 9 11 1234-5678',
     service: buildService(),
     message: 'Necesito cotizar aislación para una cámara.',
+    materials: null,
     status: QuoteRequestStatus.NEW,
     notes: [],
     createdAt: new Date('2026-08-20T13:46:06.791Z'),
@@ -219,5 +220,17 @@ describe('ClientsService', () => {
     await expect(clientsService.findMe('admin-user-id')).rejects.toThrow(
       NotFoundException,
     );
+  });
+
+  it('debe mostrar Sin servicio cuando una cotización no tiene servicio asociado', async () => {
+    const client = buildClient();
+    const quoteRequest = buildQuoteRequest({ service: null });
+
+    findOneClientMock.mockResolvedValue(client);
+    findQuoteRequestsMock.mockResolvedValue([quoteRequest]);
+
+    const result = await clientsService.findMe('user-id');
+
+    expect(result.quoteRequests[0].serviceName).toBe('Sin servicio');
   });
 });

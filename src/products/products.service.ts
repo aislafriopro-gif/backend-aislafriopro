@@ -14,6 +14,7 @@ import { CloudinaryService } from '../media/cloudinary.service';
 import { Media } from '../media/entities/media.entity';
 import 'multer';
 import { CreateProductDto } from './dto/create-product.dto';
+import { FindProductsAdminQueryDto } from './dto/find-products-admin-query.dto';
 import { FindProductsQueryDto } from './dto/find-products-query.dto';
 import { ProductPublicResponseDto } from './dto/product-public-response.dto';
 import { UpdateProductDto } from './dto/update-product.dto';
@@ -94,11 +95,15 @@ export class ProductsService {
   }
 
   async findAllAdmin(
-    query: FindProductsQueryDto,
-  ): Promise<PaginatedResponse<ProductPublicResponseDto>> {
+    query: FindProductsAdminQueryDto,
+  ): Promise<PaginatedResponse<Product>> {
     const where: FindOptionsWhere<Product> = {};
 
     this.applyAdminFilters(where, query);
+
+    if (query.productId) {
+      where.id = query.productId;
+    }
 
     const [data, total] = await this.productRepository.findAndCount({
       where,
@@ -109,13 +114,17 @@ export class ProductsService {
       take: query.limit,
     });
 
-    const mapped = data.map((product) => this.mapToPublicResponse(product));
-    return buildPaginatedResponse(mapped, total, query.page, query.limit);
+    return buildPaginatedResponse(data, total, query.page, query.limit);
   }
 
   async findOne(id: string): Promise<ProductPublicResponseDto> {
     const product = await this.productRepository.findOne({
-      where: { id, deletedAt: IsNull() },
+      where: {
+        id,
+        deletedAt: IsNull(),
+        status: ProductStatus.ACTIVE,
+        isPublished: true,
+      },
       relations: ['images', 'images.media'],
     });
 
@@ -124,20 +133,6 @@ export class ProductsService {
     }
 
     return this.mapToPublicResponse(product);
-  }
-
-  async findOneAdmin(id: string): Promise<Product> {
-    const product = await this.productRepository.findOne({
-      where: { id },
-      withDeleted: true,
-      relations: ['images', 'images.media'],
-    });
-
-    if (!product) {
-      throw new NotFoundException(`Product with id "${id}" not found`);
-    }
-
-    return product;
   }
 
   async findOneBySlug(slug: string): Promise<ProductPublicResponseDto> {
@@ -262,7 +257,7 @@ export class ProductsService {
 
   private applyAdminFilters(
     where: FindOptionsWhere<Product>,
-    query: FindProductsQueryDto,
+    query: FindProductsAdminQueryDto,
   ): void {
     if (query.status) {
       where.status = query.status;
@@ -370,11 +365,7 @@ export class ProductsService {
       slug: product.slug,
       description: product.description,
       price: Number(product.price),
-      status: product.status,
-      isPublished: product.isPublished,
       images: activeImages,
-      createdAt: product.createdAt,
-      updatedAt: product.updatedAt,
     };
   }
 }
