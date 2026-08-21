@@ -3,6 +3,7 @@ import * as bcrypt from 'bcrypt';
 import dataSource from '../data-source';
 import { Role, RoleName } from '../../roles/entities/roles.entity';
 import { User } from '../../users/entities/user.entity';
+import { Client } from '../../clients/entities/client.entity';
 
 const DEFAULT_PASSWORD = 'PassWord23!';
 const BCRYPT_SALT_ROUNDS = 10;
@@ -65,6 +66,7 @@ async function seedRoles(
 
 async function seedUsers(
   userRepository: ReturnType<typeof dataSource.getRepository<User>>,
+  clientRepository: ReturnType<typeof dataSource.getRepository<Client>>,
   rolesMap: Map<RoleName, Role>,
 ): Promise<void> {
   const seedPassword = process.env.SEED_DEFAULT_PASSWORD ?? DEFAULT_PASSWORD;
@@ -82,6 +84,23 @@ async function seedUsers(
 
     if (existingUser) {
       console.log(`[SEED] Usuario "${email}" (${name}) ya existe. Omitiendo.`);
+
+      if (name === RoleName.CLIENT) {
+        const existingClient = await clientRepository.findOneBy({
+          userId: existingUser.id,
+        });
+
+        if (!existingClient) {
+          const client = clientRepository.create({
+            userId: existingUser.id,
+            user: existingUser,
+          });
+
+          await clientRepository.save(client);
+          console.log(`[SEED] Perfil Client creado para "${email}".`);
+        }
+      }
+
       continue;
     }
 
@@ -92,8 +111,18 @@ async function seedUsers(
       role,
     });
 
-    await userRepository.save(user);
+    const savedUser = await userRepository.save(user);
     console.log(`[SEED] Usuario "${email}" creado con rol "${name}".`);
+
+    if (name === RoleName.CLIENT) {
+      const client = clientRepository.create({
+        userId: savedUser.id,
+        user: savedUser,
+      });
+
+      await clientRepository.save(client);
+      console.log(`[SEED] Perfil Client creado para "${email}".`);
+    }
   }
 }
 
@@ -106,9 +135,10 @@ async function main(): Promise<void> {
 
     const roleRepository = dataSource.getRepository(Role);
     const userRepository = dataSource.getRepository(User);
+    const clientRepository = dataSource.getRepository(Client);
 
     const rolesMap = await seedRoles(roleRepository);
-    await seedUsers(userRepository, rolesMap);
+    await seedUsers(userRepository, clientRepository, rolesMap);
 
     console.log('[SEED] Seed finalizado correctamente.');
   } catch (error) {
