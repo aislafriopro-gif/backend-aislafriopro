@@ -8,11 +8,13 @@ import { Service } from '../services/entities/service.entity';
 import { User, UserStatus } from '../users/entities/user.entity';
 import { Client } from './entities/client.entity';
 import { ClientsService } from './clients.service';
+import { PaginationParamsDto } from '../common/pagination';
 
 describe('ClientsService', () => {
   let clientsService: ClientsService;
 
   let findOneClientMock: jest.Mock<Promise<Client | null>, [unknown]>;
+  let findAndCountClientMock: jest.Mock<Promise<[Client[], number]>, [unknown]>;
   let findQuoteRequestsMock: jest.Mock<Promise<QuoteRequest[]>, [unknown]>;
 
   const buildUser = (overrides: Partial<User> = {}): User =>
@@ -51,10 +53,12 @@ describe('ClientsService', () => {
 
   beforeEach(() => {
     findOneClientMock = jest.fn<Promise<Client | null>, [unknown]>();
+    findAndCountClientMock = jest.fn<Promise<[Client[], number]>, [unknown]>();
     findQuoteRequestsMock = jest.fn<Promise<QuoteRequest[]>, [unknown]>();
 
     const clientRepository = {
       findOne: findOneClientMock,
+      findAndCount: findAndCountClientMock,
     } as unknown as Repository<Client>;
 
     const quoteRequestRepository = {
@@ -81,6 +85,84 @@ describe('ClientsService', () => {
     createdAt: new Date('2026-08-20T13:46:06.791Z'),
     updatedAt: new Date(),
     ...overrides,
+  });
+
+  it('debe listar clientes paginados para admin', async () => {
+    const pagination = new PaginationParamsDto();
+    pagination.page = 1;
+    pagination.limit = 10;
+
+    const clients = [
+      buildClient({ id: 'client-1' }),
+      buildClient({
+        id: 'client-2',
+        userId: 'user-2',
+        user: buildUser({
+          id: 'user-2',
+          name: 'Cliente Dos',
+          email: 'cliente2@example.com',
+        }),
+      }),
+    ];
+
+    findAndCountClientMock.mockResolvedValue([clients, 2]);
+
+    const result = await clientsService.findAll(pagination);
+
+    expect(findAndCountClientMock).toHaveBeenCalledWith({
+      relations: { user: true },
+      order: { createdAt: 'DESC' },
+      skip: 0,
+      take: 10,
+    });
+
+    expect(result).toEqual({
+      data: [
+        {
+          id: 'client-1',
+          name: 'Cliente Prueba',
+          email: 'cliente@example.com',
+          phone: '+54 9 11 1234-5678',
+        },
+        {
+          id: 'client-2',
+          name: 'Cliente Dos',
+          email: 'cliente2@example.com',
+          phone: '+54 9 11 1234-5678',
+        },
+      ],
+      total: 2,
+      page: 1,
+      limit: 10,
+      totalPages: 1,
+    });
+  });
+
+  it('debe devolver detalle de un cliente por id para admin', async () => {
+    const client = buildClient();
+    const quoteRequest = buildQuoteRequest();
+
+    findOneClientMock.mockResolvedValue(client);
+    findQuoteRequestsMock.mockResolvedValue([quoteRequest]);
+
+    const result = await clientsService.findOne('client-id');
+
+    expect(findOneClientMock).toHaveBeenCalledWith({
+      where: { id: 'client-id' },
+      relations: { user: true },
+    });
+
+    expect(result.client.id).toBe(client.id);
+    expect(result.quoteRequests).toHaveLength(1);
+    expect(result.workOrders).toEqual([]);
+  });
+
+  it('debe lanzar NotFoundException si admin pide un cliente inexistente', async () => {
+    findOneClientMock.mockResolvedValue(null);
+
+    await expect(clientsService.findOne('missing-client-id')).rejects.toThrow(
+      NotFoundException,
+    );
   });
 
   it('debe devolver datos propios del cliente autenticado', async () => {
