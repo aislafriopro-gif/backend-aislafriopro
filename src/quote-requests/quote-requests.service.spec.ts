@@ -269,8 +269,11 @@ describe('QuoteRequestsService', () => {
       );
     });
 
-    it('debe crear la solicitud sin servicio cuando no llega serviceId', async () => {
-      const dto = buildValidDto({ serviceId: undefined, materials: 'Lamina de acero galvanizada' });
+    it('debe crear la solicitud sin serviceId y con materials cuando se envía', async () => {
+      const dto = buildValidDto({
+        serviceId: undefined,
+        materials: 'Lamina de acero galvanizada',
+      });
       const result = await quoteRequestsService.create(dto);
 
       expect(serviceRepository.findOne).not.toHaveBeenCalled();
@@ -286,6 +289,31 @@ describe('QuoteRequestsService', () => {
         expect.objectContaining({
           status: 'NEW',
           materials: 'Lamina de acero galvanizada',
+          service: null,
+        }),
+      );
+    });
+
+    it('debe crear la solicitud sin serviceId y sin materials cuando no se envía', async () => {
+      const dto = buildValidDto({
+        serviceId: undefined,
+        materials: undefined,
+      });
+      const result = await quoteRequestsService.create(dto);
+
+      expect(serviceRepository.findOne).not.toHaveBeenCalled();
+      expect(quoteRequestRepository.create).toHaveBeenCalledWith(
+        expect.objectContaining({
+          name: dto.name,
+          materials: null,
+          service: null,
+          status: 'NEW',
+        }),
+      );
+      expect(result).toEqual(
+        expect.objectContaining({
+          status: 'NEW',
+          materials: null,
           service: null,
         }),
       );
