@@ -367,12 +367,12 @@ describe('QuoteRequestsService', () => {
       const pagination = buildPagination();
 
       await quoteRequestsService.findAll(pagination, {
-        status: QuoteRequestStatus.RESPONDED,
+        status: QuoteRequestStatus.RESOLVED,
       });
 
       expect(andWhereMock).toHaveBeenCalledWith(
         'quoteRequest.status = :status',
-        { status: QuoteRequestStatus.RESPONDED },
+        { status: QuoteRequestStatus.RESOLVED },
       );
     });
 
