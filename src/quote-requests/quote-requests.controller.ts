@@ -11,6 +11,7 @@ import {
   Query,
 } from '@nestjs/common';
 import {
+  ApiBearerAuth,
   ApiBody,
   ApiOperation,
   ApiParam,
@@ -34,7 +35,7 @@ import {
   QuoteRequestStatus,
 } from './entities/quote-request.entity';
 
-@ApiTags('Quote Requests')
+@ApiTags('Cotizaciones')
 @Controller('quote-requests')
 export class QuoteRequestsController {
   constructor(private readonly quoteRequestsService: QuoteRequestsService) {}
@@ -70,6 +71,7 @@ export class QuoteRequestsController {
 
   @Get()
   @Auth(RoleName.ADMIN)
+  @ApiBearerAuth('access-token')
   @ApiOperation({
     summary: 'Listar cotizaciones (ADMIN)',
   })
@@ -96,6 +98,7 @@ export class QuoteRequestsController {
 
   @Get(':id')
   @Auth(RoleName.ADMIN)
+  @ApiBearerAuth('access-token')
   @ApiOperation({
     summary: 'Obtener detalle de una solicitud de cotización (ADMIN)',
   })
@@ -123,6 +126,7 @@ export class QuoteRequestsController {
 
   @Post(':id/notes')
   @Auth(RoleName.ADMIN)
+  @ApiBearerAuth('access-token')
   @HttpCode(HttpStatus.CREATED)
   @ApiOperation({
     summary: 'Agregar una nota interna a una solicitud de cotización (ADMIN)',
@@ -162,6 +166,7 @@ export class QuoteRequestsController {
 
   @Patch(':id/status')
   @Auth(RoleName.ADMIN)
+  @ApiBearerAuth('access-token')
   @ApiOperation({
     summary: 'Actualizar el estado de una solicitud de cotización (ADMIN)',
   })

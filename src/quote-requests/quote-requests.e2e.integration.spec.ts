@@ -337,12 +337,12 @@ describe('QuoteRequestsController (integration)', () => {
 
     it('debe aplicar el filtro por estado', async () => {
       getManyAndCountMock.mockResolvedValue([
-        [buildQuoteRequest({ status: QuoteRequestStatus.RESPONDED })],
+        [buildQuoteRequest({ status: QuoteRequestStatus.RESOLVED })],
         1,
       ]);
 
       const response = await request(app.getHttpServer())
-        .get('/api/v1/quote-requests?status=RESPONDED')
+        .get('/api/v1/quote-requests?status=RESOLVED')
         .expect(HttpStatus.OK);
 
       expect(response.body).toEqual(

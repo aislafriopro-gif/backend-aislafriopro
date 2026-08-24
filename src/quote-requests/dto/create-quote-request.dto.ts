@@ -1,4 +1,4 @@
-import { ApiProperty } from '@nestjs/swagger';
+import { ApiProperty, ApiPropertyOptional } from '@nestjs/swagger';
 import {
   IsEmail,
   IsNotEmpty,
@@ -61,12 +61,11 @@ export class CreateQuoteRequestDto {
   )
   phone!: string;
 
-  @ApiProperty({
+  @ApiPropertyOptional({
     description: 'ID del servicio solicitado cuando el cliente lo selecciona',
     format: 'uuid',
     example: 'a1b2c3d4-e5f6-7890-abcd-ef1234567890',
     maxLength: 36,
-    required: false,
     nullable: true,
   })
   @IsOptional()
@@ -76,11 +75,10 @@ export class CreateQuoteRequestDto {
   })
   serviceId?: string | null;
 
-  @ApiProperty({
+  @ApiPropertyOptional({
     description: 'Materiales, observaciones técnicas o detalle adicional solicitado por el cliente',
     example: 'Necesitamos aislamiento acústico y una estructura metálica reforzada.',
     maxLength: 1000,
-    required: false,
     nullable: true,
   })
   @IsOptional()
