@@ -167,26 +167,42 @@ export class ProductsService {
       throw new NotFoundException(`Product with id "${id}" not found`);
     }
 
-    if (updateProductDto.slug !== undefined) {
-      await this.ensureSlugAvailable(updateProductDto.slug, id);
+    const hasName =
+      updateProductDto.name !== undefined && updateProductDto.name !== '';
+    const hasSlug =
+      updateProductDto.slug !== undefined && updateProductDto.slug !== '';
+    const hasDescription =
+      updateProductDto.description !== undefined &&
+      updateProductDto.description !== '';
+    const hasPrice = updateProductDto.price !== undefined;
+    const hasFiles = files && files.length > 0;
+
+    if (!hasName && !hasSlug && !hasDescription && !hasPrice && !hasFiles) {
+      throw new BadRequestException(
+        'Debe enviar al menos 1 campo para modificar.',
+      );
+    }
+
+    if (hasSlug) {
+      await this.ensureSlugAvailable(updateProductDto.slug!, id);
     }
 
     const updateData: Partial<Product> = {};
 
-    if (updateProductDto.name !== undefined) {
-      updateData.name = updateProductDto.name;
+    if (hasName) {
+      updateData.name = updateProductDto.name!;
     }
 
-    if (updateProductDto.slug !== undefined) {
-      updateData.slug = updateProductDto.slug;
+    if (hasSlug) {
+      updateData.slug = updateProductDto.slug!;
     }
 
-    if (updateProductDto.description !== undefined) {
-      updateData.description = updateProductDto.description;
+    if (hasDescription) {
+      updateData.description = updateProductDto.description!;
     }
 
-    if (updateProductDto.price !== undefined) {
-      updateData.price = updateProductDto.price;
+    if (hasPrice) {
+      updateData.price = updateProductDto.price!;
     }
 
     Object.assign(product, updateData);
