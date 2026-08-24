@@ -1,6 +1,6 @@
 import { ApiProperty } from '@nestjs/swagger';
 
-class ClientProfileResponseDto {
+export class ClientProfileResponseDto {
   @ApiProperty({ example: '7be6ef16-1a45-4b82-950c-3411fef49b28' })
   id!: string;
 
@@ -14,7 +14,7 @@ class ClientProfileResponseDto {
   phone!: string | null;
 }
 
-class ClientQuoteRequestResponseDto {
+export class ClientQuoteRequestResponseDto {
   @ApiProperty({ example: 'b2c3d4e5-f6a7-4890-bcde-f1234567890a' })
   id!: string;
 
