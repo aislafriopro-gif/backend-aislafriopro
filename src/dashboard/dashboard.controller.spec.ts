@@ -1,6 +1,7 @@
 import { DashboardController } from './dashboard.controller';
 import { DashboardService } from './dashboard.service';
 import { DashboardStatsResponseDto } from './dto/dashboard-stats-response.dto';
+import { RoleName } from '../roles/entities/roles.entity';
 
 describe('DashboardController', () => {
   let dashboardController: DashboardController;
@@ -35,11 +36,17 @@ describe('DashboardController', () => {
       },
     };
 
+    const requestUser = {
+      userId: 'admin-user-id',
+      email: 'admin@aislafriopro.com',
+      role: RoleName.ADMIN,
+    };
+
     getStatsMock.mockResolvedValue(response);
 
-    const result = await dashboardController.getStats();
+    const result = await dashboardController.getStats(requestUser);
 
-    expect(getStatsMock).toHaveBeenCalledTimes(1);
+    expect(getStatsMock).toHaveBeenCalledWith(requestUser);
     expect(result).toBe(response);
   });
 });
