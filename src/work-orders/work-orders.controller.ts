@@ -1,0 +1,89 @@
+import {
+  Body,
+  Controller,
+  Get,
+  HttpCode,
+  HttpStatus,
+  Param,
+  ParseUUIDPipe,
+  Patch,
+  Post,
+  Query,
+} from '@nestjs/common';
+import {
+  ApiBearerAuth,
+  ApiBody,
+  ApiOperation,
+  ApiParam,
+  ApiResponse,
+  ApiTags,
+} from '@nestjs/swagger';
+import { Auth } from '../common/decorators/auth.decorator';
+import { CurrentUser } from '../common/decorators/current-user.decorator';
+import { PaginatedResponse, PaginationParamsDto } from '../common/pagination';
+import { RoleName } from '../roles/entities/roles.entity';
+import { CreateWorkOrderDto } from './dto/create-work-order.dto';
+import { UpdateWorkOrderDto } from './dto/update-work-order.dto';
+import { WorkOrder } from './entities/work-order.entity';
+import { WorkOrdersService } from './work-orders.service';
+
+@ApiTags('Órdenes de trabajo')
+@Controller('work-orders')
+export class WorkOrdersController {
+  constructor(private readonly workOrdersService: WorkOrdersService) {}
+
+  @Post()
+  @Auth(RoleName.ADMIN)
+  @HttpCode(HttpStatus.CREATED)
+  @ApiBearerAuth('access-token')
+  @ApiOperation({ summary: 'Crear una orden de trabajo (ADMIN)' })
+  @ApiBody({ type: CreateWorkOrderDto })
+  @ApiResponse({ status: HttpStatus.CREATED, description: 'Orden creada.', type: WorkOrder })
+  @ApiResponse({ status: HttpStatus.BAD_REQUEST, description: 'Datos inválidos.' })
+  @ApiResponse({ status: HttpStatus.NOT_FOUND, description: 'Relación no encontrada.' })
+  async create(
+    @Body() createWorkOrderDto: CreateWorkOrderDto,
+    @CurrentUser('id') userId: string | undefined,
+  ): Promise<WorkOrder> {
+    return this.workOrdersService.create(createWorkOrderDto, userId);
+  }
+
+  @Get()
+  @Auth(RoleName.ADMIN)
+  @ApiBearerAuth('access-token')
+  @ApiOperation({ summary: 'Listar órdenes de trabajo (ADMIN)' })
+  @ApiResponse({ status: HttpStatus.OK, description: 'Listado paginado.', type: WorkOrder })
+  async findAll(
+    @Query() query: PaginationParamsDto,
+  ): Promise<PaginatedResponse<WorkOrder>> {
+    return this.workOrdersService.findAll(query);
+  }
+
+  @Get(':id')
+  @Auth(RoleName.ADMIN)
+  @ApiBearerAuth('access-token')
+  @ApiOperation({ summary: 'Obtener una orden de trabajo (ADMIN)' })
+  @ApiParam({ name: 'id', type: 'string', format: 'uuid' })
+  @ApiResponse({ status: HttpStatus.OK, description: 'Detalle de la orden.', type: WorkOrder })
+  @ApiResponse({ status: HttpStatus.NOT_FOUND, description: 'Orden no encontrada.' })
+  async findOne(@Param('id', new ParseUUIDPipe()) id: string): Promise<WorkOrder> {
+    return this.workOrdersService.findOne(id);
+  }
+
+  @Patch(':id')
+  @Auth(RoleName.ADMIN)
+  @ApiBearerAuth('access-token')
+  @ApiOperation({ summary: 'Actualizar una orden de trabajo (ADMIN)' })
+  @ApiParam({ name: 'id', type: 'string', format: 'uuid' })
+  @ApiBody({ type: UpdateWorkOrderDto })
+  @ApiResponse({ status: HttpStatus.OK, description: 'Orden actualizada.', type: WorkOrder })
+  @ApiResponse({ status: HttpStatus.BAD_REQUEST, description: 'Datos inválidos.' })
+  @ApiResponse({ status: HttpStatus.NOT_FOUND, description: 'Orden o técnico no encontrado.' })
+  async update(
+    @Param('id', new ParseUUIDPipe()) id: string,
+    @Body() updateWorkOrderDto: UpdateWorkOrderDto,
+    @CurrentUser('id') userId: string | undefined,
+  ): Promise<WorkOrder> {
+    return this.workOrdersService.update(id, updateWorkOrderDto, userId);
+  }
+}

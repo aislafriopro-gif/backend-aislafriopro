@@ -22,21 +22,21 @@ export class WorkOrder {
   @PrimaryGeneratedColumn('uuid')
   id!: string;
 
-  @Column({ type: 'uuid' })
+  @Column({ type: 'uuid', name: 'client_id' })
   clientId!: string;
 
   @ManyToOne(() => Client, { nullable: false })
   @JoinColumn({ name: 'client_id' })
   client!: Client;
 
-  @Column({ type: 'uuid', nullable: true })
+  @Column({ type: 'uuid', name: 'technician_id', nullable: true })
   technicianId?: string | null;
 
   @ManyToOne(() => User, { nullable: true })
   @JoinColumn({ name: 'technician_id' })
   technician?: User | null;
 
-  @Column({ type: 'uuid', nullable: true })
+  @Column({ type: 'uuid', name: 'quote_request_id', nullable: true })
   quoteRequestId?: string | null;
 
   @ManyToOne(() => QuoteRequest, { nullable: true })
