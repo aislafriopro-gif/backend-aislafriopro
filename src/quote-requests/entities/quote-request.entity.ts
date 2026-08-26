@@ -44,7 +44,6 @@ export class QuoteRequest {
   @Column({ type: 'text', nullable: true })
   materials!: string | null;
 
-  @Column({ type: 'enum', enum: QuoteRequestStatus, default: QuoteRequestStatus.NEW })
   @Column({
     type: 'enum',
     enum: QuoteRequestStatus,
