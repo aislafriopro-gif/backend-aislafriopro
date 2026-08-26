@@ -52,14 +52,23 @@ describe('QuoteRequestsController', () => {
   let controller: QuoteRequestsController;
   let createMock: jest.MockedFunction<QuoteRequestsService['create']>;
   let findAllMock: jest.MockedFunction<QuoteRequestsService['findAll']>;
+  let findOneMock: jest.MockedFunction<QuoteRequestsService['findOne']>;
+  let addNoteMock: jest.MockedFunction<QuoteRequestsService['addNote']>;
+  let updateStatusMock: jest.MockedFunction<QuoteRequestsService['updateStatus']>;
 
   beforeEach(() => {
     createMock = jest.fn();
     findAllMock = jest.fn();
+    findOneMock = jest.fn();
+    addNoteMock = jest.fn();
+    updateStatusMock = jest.fn();
 
     const quoteRequestsService = {
       create: createMock,
       findAll: findAllMock,
+      findOne: findOneMock,
+      addNote: addNoteMock,
+      updateStatus: updateStatusMock,
     } as unknown as QuoteRequestsService;
 
     controller = new QuoteRequestsController(quoteRequestsService);
@@ -74,7 +83,7 @@ describe('QuoteRequestsController', () => {
         name: quoteRequest.name,
         email: quoteRequest.email,
         phone: quoteRequest.phone,
-        serviceId: quoteRequest.service.id,
+        serviceId: quoteRequest.service?.id ?? '123e4567-e89b-42d3-a456-426614174000',
         message: quoteRequest.message,
       };
 
@@ -99,15 +108,69 @@ describe('QuoteRequestsController', () => {
       const query = Object.assign(new FindQuoteRequestsQueryDto(), {
         page: 1,
         limit: 10,
-        status: QuoteRequestStatus.RESPONDED,
+        status: QuoteRequestStatus.RESOLVED,
       });
 
       const result = await controller.findAll(query);
 
       expect(result).toBe(paginatedResponse);
       expect(findAllMock).toHaveBeenCalledWith(query, {
-        status: QuoteRequestStatus.RESPONDED,
+        status: QuoteRequestStatus.RESOLVED,
       });
+    });
+  });
+
+  describe('findOne', () => {
+    it('debe devolver la solicitud por id', async () => {
+      const quoteRequest = buildQuoteRequest();
+      findOneMock.mockResolvedValue(quoteRequest);
+
+      const result = await controller.findOne(quoteRequest.id);
+
+      expect(result).toBe(quoteRequest);
+      expect(findOneMock).toHaveBeenCalledWith(quoteRequest.id);
+    });
+  });
+
+  describe('addNote', () => {
+    it('debe crear una nota para la solicitud', async () => {
+      const quoteRequest = buildQuoteRequest();
+      const note = {
+        id: '8f4f3a0d-8a49-4d5f-a20d-9f091d2e8d10',
+        note: 'Se requiere revisión técnica del cliente.',
+        createdAt: new Date('2026-01-02T10:00:00.000Z'),
+      };
+      addNoteMock.mockResolvedValue(note as any);
+
+      const result = await controller.addNote(quoteRequest.id, {
+        content: note.note,
+      });
+
+      expect(result).toEqual({
+        id: note.id,
+        content: note.note,
+        createdAt: note.createdAt,
+        message: 'Nota creada',
+      });
+      expect(addNoteMock).toHaveBeenCalledWith(quoteRequest.id, note.note);
+    });
+  });
+
+  describe('updateStatus', () => {
+    it('debe actualizar el estado de la solicitud', async () => {
+      const quoteRequest = buildQuoteRequest({
+        status: QuoteRequestStatus.IN_PROGRESS,
+      });
+      updateStatusMock.mockResolvedValue(quoteRequest);
+
+      const dto = { status: QuoteRequestStatus.IN_PROGRESS };
+      const result = await controller.updateStatus(quoteRequest.id, dto);
+
+      expect(result).toBe(quoteRequest);
+      expect(updateStatusMock).toHaveBeenCalledWith(
+        quoteRequest.id,
+        QuoteRequestStatus.IN_PROGRESS,
+      );
     });
   });
 });

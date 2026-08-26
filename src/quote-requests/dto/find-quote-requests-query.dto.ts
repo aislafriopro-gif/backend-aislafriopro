@@ -1,13 +1,13 @@
-import { ApiProperty } from '@nestjs/swagger';
+import { ApiPropertyOptional } from '@nestjs/swagger';
 import { IsEnum, IsOptional } from 'class-validator';
 import { PaginationParamsDto } from '../../common/pagination';
 import { QuoteRequestStatus } from '../entities/quote-request.entity';
 
 export class FindQuoteRequestsQueryDto extends PaginationParamsDto {
-  @ApiProperty({
+  @ApiPropertyOptional({
     description: 'Filtrar por estado de la solicitud',
     enum: QuoteRequestStatus,
-    required: false,
+    example: QuoteRequestStatus.NEW,
   })
   @IsEnum(QuoteRequestStatus)
   @IsOptional()
