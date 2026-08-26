@@ -83,6 +83,7 @@ describe('QuoteRequestsService', () => {
     create: jest.Mock;
     save: jest.Mock;
     createQueryBuilder: jest.Mock;
+    findOne: jest.Mock;
   };
   let serviceRepository: {
     findOne: jest.Mock;
@@ -136,6 +137,7 @@ describe('QuoteRequestsService', () => {
         ),
       ),
       createQueryBuilder: createQueryBuilderMock,
+      findOne: jest.fn(),
     };
 
     serviceRepository = {
@@ -230,6 +232,28 @@ describe('QuoteRequestsService', () => {
 
       expect(errors.some((error) => error.property === 'serviceId')).toBe(true);
     });
+
+    it('debe rechazar un name con longitud insuficiente o excedida', async () => {
+      const tooShort = buildValidDto({ name: 'A' });
+      const tooLong = buildValidDto({ name: 'A'.repeat(151) });
+
+      const shortErrors = await validate(tooShort);
+      const longErrors = await validate(tooLong);
+
+      expect(shortErrors.some((error) => error.property === 'name')).toBe(true);
+      expect(longErrors.some((error) => error.property === 'name')).toBe(true);
+    });
+
+    it('debe rechazar un message que no alcance el mínimo o supere el máximo', async () => {
+      const tooShort = buildValidDto({ message: 'Muy corto' });
+      const tooLong = buildValidDto({ message: 'A'.repeat(1001) });
+
+      const shortErrors = await validate(tooShort);
+      const longErrors = await validate(tooLong);
+
+      expect(shortErrors.some((error) => error.property === 'message')).toBe(true);
+      expect(longErrors.some((error) => error.property === 'message')).toBe(true);
+    });
   });
 
   describe('create', () => {
@@ -269,8 +293,11 @@ describe('QuoteRequestsService', () => {
       );
     });
 
-    it('debe crear la solicitud sin servicio cuando no llega serviceId', async () => {
-      const dto = buildValidDto({ serviceId: undefined, materials: 'Lamina de acero galvanizada' });
+    it('debe crear la solicitud sin serviceId y con materials cuando se envía', async () => {
+      const dto = buildValidDto({
+        serviceId: undefined,
+        materials: 'Lamina de acero galvanizada',
+      });
       const result = await quoteRequestsService.create(dto);
 
       expect(serviceRepository.findOne).not.toHaveBeenCalled();
@@ -291,6 +318,31 @@ describe('QuoteRequestsService', () => {
       );
     });
 
+    it('debe crear la solicitud sin serviceId y sin materials cuando no se envía', async () => {
+      const dto = buildValidDto({
+        serviceId: undefined,
+        materials: undefined,
+      });
+      const result = await quoteRequestsService.create(dto);
+
+      expect(serviceRepository.findOne).not.toHaveBeenCalled();
+      expect(quoteRequestRepository.create).toHaveBeenCalledWith(
+        expect.objectContaining({
+          name: dto.name,
+          materials: null,
+          service: null,
+          status: 'NEW',
+        }),
+      );
+      expect(result).toEqual(
+        expect.objectContaining({
+          status: 'NEW',
+          materials: null,
+          service: null,
+        }),
+      );
+    });
+
     it('debe rechazar si el serviceId es válido pero no existe en la base', async () => {
       const dto = buildValidDto();
       serviceRepository.findOne.mockResolvedValue(null);
@@ -305,6 +357,71 @@ describe('QuoteRequestsService', () => {
       expect(serviceRepository.findOne).toHaveBeenCalledWith({
         where: { id: dto.serviceId, deletedAt: IsNull() },
       });
+    });
+  });
+
+  describe('addNote', () => {
+    it('debe crear una nota asociada a la solicitud', async () => {
+      const quoteRequest = buildQuoteRequest({ id: 'a1b2c3d4-e5f6-7890-abcd-ef1234567890' });
+      const noteContent = 'Necesitamos revisar el presupuesto antes del viernes.';
+
+      quoteRequestRepository.findOne.mockResolvedValue(quoteRequest);
+
+      const result = await quoteRequestsService.addNote(quoteRequest.id, noteContent);
+
+      expect(quoteRequestRepository.findOne).toHaveBeenCalledWith({
+        where: { id: quoteRequest.id },
+      });
+      expect(quoteRequestNoteRepository.create).toHaveBeenCalledWith({
+        quoteRequest,
+        note: noteContent,
+      });
+      expect(quoteRequestNoteRepository.save).toHaveBeenCalledTimes(1);
+      expect(result).toEqual(
+        expect.objectContaining({
+          quoteRequest,
+          note: noteContent,
+        }),
+      );
+    });
+
+    it('debe lanzar NotFoundException cuando la solicitud no existe', async () => {
+      quoteRequestRepository.findOne.mockResolvedValue(null);
+
+      await expect(
+        quoteRequestsService.addNote('missing-id', 'nota inválida'),
+      ).rejects.toThrow('Quote request with id "missing-id" not found');
+    });
+  });
+
+  describe('updateStatus', () => {
+    it.each([
+      QuoteRequestStatus.NEW,
+      QuoteRequestStatus.IN_PROGRESS,
+      QuoteRequestStatus.RESOLVED,
+      QuoteRequestStatus.REJECTED,
+    ])('debe actualizar la solicitud al estado %s', async (status) => {
+      const quoteRequest = buildQuoteRequest({ status: QuoteRequestStatus.NEW });
+
+      quoteRequestRepository.findOne.mockResolvedValue(quoteRequest);
+
+      const result = await quoteRequestsService.updateStatus(quoteRequest.id, status);
+
+      expect(quoteRequestRepository.findOne).toHaveBeenCalledWith({
+        where: { id: quoteRequest.id },
+        relations: ['service', 'notes'],
+      });
+      expect(quoteRequest.status).toBe(status);
+      expect(quoteRequestRepository.save).toHaveBeenCalledWith(quoteRequest);
+      expect(result).toEqual(quoteRequest);
+    });
+
+    it('debe lanzar NotFoundException si la solicitud no existe', async () => {
+      quoteRequestRepository.findOne.mockResolvedValue(null);
+
+      await expect(
+        quoteRequestsService.updateStatus('missing-id', QuoteRequestStatus.RESOLVED),
+      ).rejects.toThrow('Quote request with id "missing-id" not found');
     });
   });
 
@@ -339,12 +456,12 @@ describe('QuoteRequestsService', () => {
       const pagination = buildPagination();
 
       await quoteRequestsService.findAll(pagination, {
-        status: QuoteRequestStatus.RESPONDED,
+        status: QuoteRequestStatus.RESOLVED,
       });
 
       expect(andWhereMock).toHaveBeenCalledWith(
         'quoteRequest.status = :status',
-        { status: QuoteRequestStatus.RESPONDED },
+        { status: QuoteRequestStatus.RESOLVED },
       );
     });
 
