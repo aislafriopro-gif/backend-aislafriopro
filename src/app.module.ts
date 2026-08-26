@@ -19,7 +19,7 @@ import { CloudinaryModule } from './media/cloudinary.module';
 import { ProductsModule } from './products/products.module';
 import { ProjectsModule } from './projects/projects.module';
 import { ClientsModule } from './clients/clients.module';
-import { WorkOrdersModule } from './work-orders/work-orders.module';
+import { DashboardModule } from './dashboard/dashboard.module';
 
 @Module({
   imports: [
@@ -66,7 +66,7 @@ import { WorkOrdersModule } from './work-orders/work-orders.module';
     ProductsModule,
     ProjectsModule,
     ClientsModule,
-    WorkOrdersModule,
+    DashboardModule,
   ],
   controllers: [AppController],
   providers: [AppService],

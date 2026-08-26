@@ -30,6 +30,14 @@ export class WorkOrdersService {
     private readonly auditService: AuditService,
   ) {}
 
+  async findMyWorkOrders(userId: string): Promise<WorkOrder[]> {
+    return await this.workOrderRepository.find({
+      where: { technicianId: userId },
+      relations: { client: true, quoteRequest: true },
+      order: { createdAt: 'DESC' },
+    });
+  }
+
   async create(
     createWorkOrderDto: CreateWorkOrderDto,
     userId?: string,
@@ -84,7 +92,7 @@ export class WorkOrdersService {
   async findAll(
     pagination: PaginationParamsDto,
   ): Promise<PaginatedResponse<WorkOrder>> {
-    const query = this.workOrderRepository
+    const [data, total] = await this.workOrderRepository
       .createQueryBuilder('workOrder')
       .leftJoinAndSelect('workOrder.client', 'client')
       .leftJoinAndSelect('client.user', 'clientUser')
@@ -92,9 +100,8 @@ export class WorkOrdersService {
       .leftJoinAndSelect('workOrder.quoteRequest', 'quoteRequest')
       .orderBy('workOrder.createdAt', 'DESC')
       .skip(pagination.offset)
-      .take(pagination.limit);
-
-    const [data, total] = await query.getManyAndCount();
+      .take(pagination.limit)
+      .getManyAndCount();
 
     return buildPaginatedResponse(
       data,

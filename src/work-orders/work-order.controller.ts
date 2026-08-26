@@ -9,6 +9,7 @@ import {
   Patch,
   Post,
   Query,
+  UseGuards,
 } from '@nestjs/common';
 import {
   ApiBearerAuth,
@@ -18,19 +19,36 @@ import {
   ApiResponse,
   ApiTags,
 } from '@nestjs/swagger';
+import { JwtAuthGuard } from '../auth/guards/jwt-auth.guard';
+import { WorkOrdersService } from './work-order.service';
 import { Auth } from '../common/decorators/auth.decorator';
-import { CurrentUser } from '../common/decorators/current-user.decorator';
-import { PaginatedResponse, PaginationParamsDto } from '../common/pagination';
 import { RoleName } from '../roles/entities/roles.entity';
+import { CurrentUser } from '../common/decorators/current-user.decorator';
+import { WorkOrder } from './entities/work-order.entity';
 import { CreateWorkOrderDto } from './dto/create-work-order.dto';
 import { UpdateWorkOrderDto } from './dto/update-work-order.dto';
-import { WorkOrder } from './entities/work-order.entity';
-import { WorkOrdersService } from './work-orders.service';
+import { PaginatedResponse, PaginationParamsDto } from '../common/pagination';
 
-@ApiTags('Órdenes de trabajo')
+@ApiTags('Work Orders')
+@UseGuards(JwtAuthGuard)
 @Controller('work-orders')
 export class WorkOrdersController {
   constructor(private readonly workOrdersService: WorkOrdersService) {}
+
+  @Auth(RoleName.TECHNICIAN)
+  @Get('my')
+  @ApiOperation({ summary: 'Mis OTs - Técnico autenticado' })
+  @ApiResponse({
+    status: 200,
+    description: 'Listado de OT asignadas al técnico',
+    type: WorkOrder,
+    isArray: true,
+  })
+  @ApiResponse({ status: 401, description: 'No autenticado' })
+  @ApiResponse({ status: 403, description: 'Sin permisos' })
+  async findMy(@CurrentUser('userId') userId: string) {
+    return this.workOrdersService.findMyWorkOrders(userId);
+  }
 
   @Post()
   @Auth(RoleName.ADMIN)
@@ -38,12 +56,16 @@ export class WorkOrdersController {
   @ApiBearerAuth('access-token')
   @ApiOperation({ summary: 'Crear una orden de trabajo (ADMIN)' })
   @ApiBody({ type: CreateWorkOrderDto })
-  @ApiResponse({ status: HttpStatus.CREATED, description: 'Orden creada.', type: WorkOrder })
+  @ApiResponse({
+    status: HttpStatus.CREATED,
+    description: 'Orden creada correctamente.',
+    type: WorkOrder,
+  })
   @ApiResponse({ status: HttpStatus.BAD_REQUEST, description: 'Datos inválidos.' })
   @ApiResponse({ status: HttpStatus.NOT_FOUND, description: 'Relación no encontrada.' })
   async create(
     @Body() createWorkOrderDto: CreateWorkOrderDto,
-    @CurrentUser('id') userId: string | undefined,
+    @CurrentUser('userId') userId: string | undefined,
   ): Promise<WorkOrder> {
     return this.workOrdersService.create(createWorkOrderDto, userId);
   }
@@ -52,13 +74,18 @@ export class WorkOrdersController {
   @Auth(RoleName.ADMIN)
   @ApiBearerAuth('access-token')
   @ApiOperation({ summary: 'Listar órdenes de trabajo (ADMIN)' })
-  @ApiResponse({ status: HttpStatus.OK, description: 'Listado paginado.', type: WorkOrder })
+  @ApiResponse({
+    status: HttpStatus.OK,
+    description: 'Listado paginado de órdenes de trabajo.',
+    type: WorkOrder,
+  })
   async findAll(
     @Query() query: PaginationParamsDto,
   ): Promise<PaginatedResponse<WorkOrder>> {
     return this.workOrdersService.findAll(query);
   }
 
+  // Debe declararse después de GET /my para no interpretar "my" como UUID.
   @Get(':id')
   @Auth(RoleName.ADMIN)
   @ApiBearerAuth('access-token')
@@ -82,7 +109,7 @@ export class WorkOrdersController {
   async update(
     @Param('id', new ParseUUIDPipe()) id: string,
     @Body() updateWorkOrderDto: UpdateWorkOrderDto,
-    @CurrentUser('id') userId: string | undefined,
+    @CurrentUser('userId') userId: string | undefined,
   ): Promise<WorkOrder> {
     return this.workOrdersService.update(id, updateWorkOrderDto, userId);
   }

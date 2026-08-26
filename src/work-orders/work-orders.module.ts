@@ -4,8 +4,8 @@ import { AuditModule } from '../audit/audit.module';
 import { Client } from '../clients/entities/client.entity';
 import { QuoteRequest } from '../quote-requests/entities/quote-request.entity';
 import { User } from '../users/entities/user.entity';
-import { WorkOrdersController } from './work-orders.controller';
-import { WorkOrdersService } from './work-orders.service';
+import { WorkOrdersController } from './work-order.controller';
+import { WorkOrdersService } from './work-order.service';
 import { WorkOrder } from './entities/work-order.entity';
 
 @Module({
