@@ -1,6 +1,12 @@
-import { Injectable, NotFoundException } from '@nestjs/common';
+import {
+  BadRequestException,
+  ForbiddenException,
+  Injectable,
+  NotFoundException,
+} from '@nestjs/common';
 import { InjectRepository } from '@nestjs/typeorm';
 import { IsNull, Repository } from 'typeorm';
+import 'multer';
 import { AuditAction } from '../audit/entities/audit-action.entity';
 import { AuditService } from '../audit/audit.service';
 import {
@@ -9,31 +15,37 @@ import {
   buildPaginatedResponse,
 } from '../common/pagination';
 import { Client } from '../clients/entities/client.entity';
+import { CloudinaryService } from '../media/cloudinary.service';
 import { QuoteRequest } from '../quote-requests/entities/quote-request.entity';
 import { RoleName } from '../roles/entities/roles.entity';
 import { User } from '../users/entities/user.entity';
 import { CreateWorkOrderDto } from './dto/create-work-order.dto';
+import { DiligenceDto } from './dto/diligence.dto';
 import { UpdateWorkOrderDto } from './dto/update-work-order.dto';
 import { WorkOrder, WorkOrderStatus } from './entities/work-order.entity';
+import { WorkOrderImage } from './media/entities/work-order-image.entity';
 
 @Injectable()
 export class WorkOrdersService {
   constructor(
     @InjectRepository(WorkOrder)
     private readonly workOrderRepository: Repository<WorkOrder>,
+    @InjectRepository(WorkOrderImage)
+    private readonly workOrderImageRepository: Repository<WorkOrderImage>,
     @InjectRepository(Client)
     private readonly clientRepository: Repository<Client>,
     @InjectRepository(User)
     private readonly userRepository: Repository<User>,
     @InjectRepository(QuoteRequest)
     private readonly quoteRequestRepository: Repository<QuoteRequest>,
+    private readonly cloudinaryService: CloudinaryService,
     private readonly auditService: AuditService,
   ) {}
 
   async findMyWorkOrders(userId: string): Promise<WorkOrder[]> {
     return await this.workOrderRepository.find({
       where: { technicianId: userId },
-      relations: { client: true, quoteRequest: true },
+      relations: { client: true, quoteRequest: true, images: true },
       order: { createdAt: 'DESC' },
     });
   }
@@ -98,6 +110,7 @@ export class WorkOrdersService {
       .leftJoinAndSelect('client.user', 'clientUser')
       .leftJoinAndSelect('workOrder.technician', 'technician')
       .leftJoinAndSelect('workOrder.quoteRequest', 'quoteRequest')
+      .leftJoinAndSelect('workOrder.images', 'images')
       .orderBy('workOrder.createdAt', 'DESC')
       .skip(pagination.offset)
       .take(pagination.limit)
@@ -118,6 +131,7 @@ export class WorkOrdersService {
       .leftJoinAndSelect('client.user', 'clientUser')
       .leftJoinAndSelect('workOrder.technician', 'technician')
       .leftJoinAndSelect('workOrder.quoteRequest', 'quoteRequest')
+      .leftJoinAndSelect('workOrder.images', 'images')
       .where('workOrder.id = :id', { id })
       .getOne();
 
@@ -175,6 +189,87 @@ export class WorkOrdersService {
     return this.findOne(saved.id);
   }
 
+  async diligenceWorkOrder(
+    id: string,
+    userId: string,
+    dto: DiligenceDto,
+  ): Promise<WorkOrder> {
+    const workOrder = await this.workOrderRepository.findOneBy({ id });
+    if (!workOrder) {
+      throw new NotFoundException(`Work order with id "${id}" not found`);
+    }
+
+    if (workOrder.technicianId !== userId) {
+      throw new ForbiddenException(
+        'No tiene permisos para diligenciar esta orden de trabajo',
+      );
+    }
+
+    const previousData = this.auditData(workOrder);
+
+    workOrder.workDone = dto.workDone;
+    workOrder.observations = dto.observations;
+    workOrder.materials = dto.materials;
+    workOrder.status = WorkOrderStatus.COMPLETED;
+
+    const saved = await this.workOrderRepository.save(workOrder);
+
+    await this.auditService.log({
+      action: AuditAction.UPDATE,
+      entityName: 'WorkOrder',
+      entityId: saved.id,
+      userId,
+      previousData,
+      newData: this.auditData(saved),
+    });
+
+    return this.findOne(saved.id);
+  }
+
+  async addPhotos(
+    workOrderId: string,
+    userId: string,
+    files: Express.Multer.File[],
+  ): Promise<Array<{ url: string; publicId: string }>> {
+    const workOrder = await this.workOrderRepository.findOneBy({
+      id: workOrderId,
+    });
+    if (!workOrder) {
+      throw new NotFoundException(
+        `Work order with id "${workOrderId}" not found`,
+      );
+    }
+
+    if (workOrder.technicianId !== userId) {
+      throw new ForbiddenException(
+        'No tiene permisos para subir fotos a esta orden de trabajo',
+      );
+    }
+
+    const uploadedImages: Array<{ url: string; publicId: string }> = [];
+
+    for (const file of files) {
+      const uploadResult = await this.cloudinaryService.uploadImage(
+        file,
+        userId,
+      );
+      const workOrderImage = this.workOrderImageRepository.create({
+        workOrderId,
+        url: uploadResult.secureUrl ?? uploadResult.url,
+        publicId: uploadResult.publicId,
+      });
+
+      const savedImage =
+        await this.workOrderImageRepository.save(workOrderImage);
+      uploadedImages.push({
+        url: savedImage.url,
+        publicId: savedImage.publicId,
+      });
+    }
+
+    return uploadedImages;
+  }
+
   private async findTechnician(id: string): Promise<User> {
     const technician = await this.userRepository.findOne({
       where: { id, deletedAt: IsNull() },
@@ -201,3 +296,4 @@ export class WorkOrdersService {
     };
   }
 }
+

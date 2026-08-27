@@ -4,12 +4,14 @@ import {
   Entity,
   JoinColumn,
   ManyToOne,
+  OneToMany,
   PrimaryGeneratedColumn,
   UpdateDateColumn,
 } from 'typeorm';
 import { Client } from '../../clients/entities/client.entity';
 import { QuoteRequest } from '../../quote-requests/entities/quote-request.entity';
 import { User } from '../../users/entities/user.entity';
+import { WorkOrderImage } from '../media/entities/work-order-image.entity';
 
 export enum WorkOrderStatus {
   PENDING = 'PENDING',
@@ -61,9 +63,13 @@ export class WorkOrder {
   @Column({ type: 'jsonb', nullable: true })
   materials?: Material[] | null;
 
+  @OneToMany(() => WorkOrderImage, (image) => image.workOrder)
+  images?: WorkOrderImage[];
+
   @CreateDateColumn()
   createdAt!: Date;
 
   @UpdateDateColumn()
   updatedAt!: Date;
 }
+
