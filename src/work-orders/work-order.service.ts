@@ -1,23 +1,33 @@
-import {
-  Injectable,
-  ForbiddenException,
-  NotFoundException,
-} from '@nestjs/common';
+import { Injectable, NotFoundException } from '@nestjs/common';
 import { InjectRepository } from '@nestjs/typeorm';
-import { WorkOrder } from './entities/work-order.entity';
-import { Repository } from 'typeorm';
-import { DiligenceDto } from './dto/diligence.dto';
-import { WorkOrderImage } from './media/entities/work-order-image.entity';
-import { CloudinaryService } from '../media/cloudinary.service';
+import { IsNull, Repository } from 'typeorm';
+import { AuditAction } from '../audit/entities/audit-action.entity';
+import { AuditService } from '../audit/audit.service';
+import {
+  PaginatedResponse,
+  PaginationParamsDto,
+  buildPaginatedResponse,
+} from '../common/pagination';
+import { Client } from '../clients/entities/client.entity';
+import { QuoteRequest } from '../quote-requests/entities/quote-request.entity';
+import { RoleName } from '../roles/entities/roles.entity';
+import { User } from '../users/entities/user.entity';
+import { CreateWorkOrderDto } from './dto/create-work-order.dto';
+import { UpdateWorkOrderDto } from './dto/update-work-order.dto';
+import { WorkOrder, WorkOrderStatus } from './entities/work-order.entity';
 
 @Injectable()
 export class WorkOrdersService {
   constructor(
     @InjectRepository(WorkOrder)
     private readonly workOrderRepository: Repository<WorkOrder>,
-    @InjectRepository(WorkOrderImage)
-    private readonly workOrderImageRepository: Repository<WorkOrderImage>,
-    private readonly cloudinaryService: CloudinaryService,
+    @InjectRepository(Client)
+    private readonly clientRepository: Repository<Client>,
+    @InjectRepository(User)
+    private readonly userRepository: Repository<User>,
+    @InjectRepository(QuoteRequest)
+    private readonly quoteRequestRepository: Repository<QuoteRequest>,
+    private readonly auditService: AuditService,
   ) {}
 
   async findMyWorkOrders(userId: string): Promise<WorkOrder[]> {
@@ -28,86 +38,166 @@ export class WorkOrdersService {
     });
   }
 
-  async findOne(id: string): Promise<WorkOrder | null> {
-    return this.workOrderRepository.findOne({ where: { id } });
-  }
-
-  async diligenceWorkOrder(
-    id: string,
-    userId: string,
-    dto: DiligenceDto,
+  async create(
+    createWorkOrderDto: CreateWorkOrderDto,
+    userId?: string,
   ): Promise<WorkOrder> {
-    // Buscar la orden con el técnico asignado
-    const workOrder = await this.workOrderRepository.findOne({
-      where: { id },
-      relations: { technician: true },
+    const client = await this.clientRepository.findOneBy({
+      id: createWorkOrderDto.clientId,
     });
-
-    if (!workOrder) {
-      throw new NotFoundException('Orden de trabajo no encontrada');
-    }
-
-    // Verificar que el usuario autenticado sea el técnico asignado
-    if (workOrder.technicianId !== userId) {
-      throw new ForbiddenException(
-        'No tienes permiso para diligenciar esta OT',
+    if (!client) {
+      throw new NotFoundException(
+        `Client with id "${createWorkOrderDto.clientId}" not found`,
       );
     }
 
-    // Actualizar los campos
-    workOrder.workDone = dto.workDone;
-    workOrder.observations = dto.observations;
-    workOrder.materials = dto.materials; // se guarda como JSON array
+    const technician = createWorkOrderDto.technicianId
+      ? await this.findTechnician(createWorkOrderDto.technicianId)
+      : null;
+    const quoteRequest = createWorkOrderDto.quoteRequestId
+      ? await this.quoteRequestRepository.findOneBy({
+          id: createWorkOrderDto.quoteRequestId,
+        })
+      : null;
 
-    return await this.workOrderRepository.save(workOrder);
+    if (createWorkOrderDto.quoteRequestId && !quoteRequest) {
+      throw new NotFoundException(
+        `Quote request with id "${createWorkOrderDto.quoteRequestId}" not found`,
+      );
+    }
+
+    const workOrder = this.workOrderRepository.create({
+      clientId: client.id,
+      client,
+      technicianId: technician?.id ?? null,
+      technician,
+      quoteRequestId: quoteRequest?.id ?? null,
+      quoteRequest,
+      status: WorkOrderStatus.PENDING,
+    });
+    const saved = await this.workOrderRepository.save(workOrder);
+
+    await this.auditService.log({
+      action: AuditAction.CREATE,
+      entityName: 'WorkOrder',
+      entityId: saved.id,
+      userId: userId ?? null,
+      previousData: null,
+      newData: this.auditData(saved),
+    });
+
+    return this.findOne(saved.id);
   }
 
-  async addPhotos(
-    workOrderId: string,
-    userId: string,
-    files: Express.Multer.File[],
-  ): Promise<{ url: string; publicId: string }[]> {
-    // Validar que la OT existe y pertenece al técnico
-    const workOrder = await this.workOrderRepository.findOne({
-      where: { id: workOrderId },
-    });
+  async findAll(
+    pagination: PaginationParamsDto,
+  ): Promise<PaginatedResponse<WorkOrder>> {
+    const [data, total] = await this.workOrderRepository
+      .createQueryBuilder('workOrder')
+      .leftJoinAndSelect('workOrder.client', 'client')
+      .leftJoinAndSelect('client.user', 'clientUser')
+      .leftJoinAndSelect('workOrder.technician', 'technician')
+      .leftJoinAndSelect('workOrder.quoteRequest', 'quoteRequest')
+      .orderBy('workOrder.createdAt', 'DESC')
+      .skip(pagination.offset)
+      .take(pagination.limit)
+      .getManyAndCount();
+
+    return buildPaginatedResponse(
+      data,
+      total,
+      pagination.page,
+      pagination.limit,
+    );
+  }
+
+  async findOne(id: string): Promise<WorkOrder> {
+    const workOrder = await this.workOrderRepository
+      .createQueryBuilder('workOrder')
+      .leftJoinAndSelect('workOrder.client', 'client')
+      .leftJoinAndSelect('client.user', 'clientUser')
+      .leftJoinAndSelect('workOrder.technician', 'technician')
+      .leftJoinAndSelect('workOrder.quoteRequest', 'quoteRequest')
+      .where('workOrder.id = :id', { id })
+      .getOne();
+
     if (!workOrder) {
-      throw new NotFoundException('Orden de trabajo no encontrada');
+      throw new NotFoundException(`Work order with id "${id}" not found`);
     }
-    if (workOrder.technicianId !== userId) {
-      throw new ForbiddenException(
-        'No tienes permiso para subir fotos a esta OT',
+
+    return workOrder;
+  }
+
+  async update(
+    id: string,
+    updateWorkOrderDto: UpdateWorkOrderDto,
+    userId?: string,
+  ): Promise<WorkOrder> {
+    const workOrder = await this.workOrderRepository.findOneBy({ id });
+    if (!workOrder) {
+      throw new NotFoundException(`Work order with id "${id}" not found`);
+    }
+
+    const previousData = this.auditData(workOrder);
+    const updateData: Partial<WorkOrder> = {
+      status: updateWorkOrderDto.status,
+      workDone: updateWorkOrderDto.workDone,
+      observations: updateWorkOrderDto.observations,
+      materials: updateWorkOrderDto.materials,
+    };
+
+    if (updateWorkOrderDto.technicianId !== undefined) {
+      const technician = await this.findTechnician(
+        updateWorkOrderDto.technicianId,
       );
+      updateData.technicianId = technician.id;
+      updateData.technician = technician;
     }
 
-    // Subir cada archivo a Cloudinary y guardar en BD
-    const results: { url: string; publicId: string }[] = [];
-    for (const file of files) {
-      // Validar tipo y tamaño (CloudinaryService ya lo hace, pero podemos hacerlo aquí también)
-      const uploadResult = await this.cloudinaryService.uploadImage(
-        {
-          buffer: file.buffer,
-          mimetype: file.mimetype,
-          size: file.size,
-          originalname: file.originalname,
-        },
-        userId,
-      ); // El segundo parámetro es uploadedById (opcional)
+    Object.keys(updateData).forEach((key) => {
+      if (updateData[key as keyof WorkOrder] === undefined) {
+        delete updateData[key as keyof WorkOrder];
+      }
+    });
 
-      // Guardar en work_order_images
-      const image = this.workOrderImageRepository.create({
-        workOrderId,
-        url: uploadResult.url,
-        publicId: uploadResult.publicId,
-      });
-      await this.workOrderImageRepository.save(image);
+    Object.assign(workOrder, updateData);
+    const saved = await this.workOrderRepository.save(workOrder);
 
-      results.push({
-        url: image.url,
-        publicId: image.publicId,
-      });
+    await this.auditService.log({
+      action: AuditAction.UPDATE,
+      entityName: 'WorkOrder',
+      entityId: saved.id,
+      userId: userId ?? null,
+      previousData,
+      newData: this.auditData(saved),
+    });
+
+    return this.findOne(saved.id);
+  }
+
+  private async findTechnician(id: string): Promise<User> {
+    const technician = await this.userRepository.findOne({
+      where: { id, deletedAt: IsNull() },
+      relations: { role: true },
+    });
+
+    if (!technician || technician.role?.name !== RoleName.TECHNICIAN) {
+      throw new NotFoundException(`Technician with id "${id}" not found`);
     }
 
-    return results;
+    return technician;
+  }
+
+  private auditData(workOrder: WorkOrder): Record<string, unknown> {
+    return {
+      id: workOrder.id,
+      clientId: workOrder.clientId,
+      technicianId: workOrder.technicianId ?? null,
+      quoteRequestId: workOrder.quoteRequestId ?? null,
+      status: workOrder.status,
+      workDone: workOrder.workDone ?? null,
+      observations: workOrder.observations ?? null,
+      materials: workOrder.materials ?? null,
+    };
   }
 }
