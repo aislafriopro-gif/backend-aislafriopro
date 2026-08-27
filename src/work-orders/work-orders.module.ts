@@ -3,11 +3,13 @@ import { TypeOrmModule } from '@nestjs/typeorm';
 import { WorkOrder } from './entities/work-order.entity';
 import { WorkOrdersController } from './work-order.controller';
 import { WorkOrdersService } from './work-order.service';
+import { CloudinaryService } from '../media/cloudinary.service';
+import { WorkOrderImage } from './media/entities/work-order-image.entity';
+import { Media } from 'src/media/entities/media.entity';
 
 @Module({
-  imports: [TypeOrmModule.forFeature([WorkOrder])],
+  imports: [TypeOrmModule.forFeature([WorkOrder, WorkOrderImage, Media])],
   controllers: [WorkOrdersController],
-  providers: [WorkOrdersService],
-  exports: [WorkOrdersService],
+  providers: [WorkOrdersService, CloudinaryService],
 })
 export class WorkOrdersModule {}
