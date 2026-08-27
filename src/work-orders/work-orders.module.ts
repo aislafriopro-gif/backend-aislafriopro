@@ -14,7 +14,6 @@ import { WorkOrder } from './entities/work-order.entity';
     AuditModule,
   ],
   controllers: [WorkOrdersController],
-  providers: [WorkOrdersService],
-  exports: [WorkOrdersService],
+  providers: [WorkOrdersService, CloudinaryService],
 })
 export class WorkOrdersModule {}
