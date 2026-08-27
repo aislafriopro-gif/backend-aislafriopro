@@ -11,7 +11,6 @@ import { AuditAction } from '../audit/entities/audit-action.entity';
 import { AuditService } from '../audit/audit.service';
 import {
   PaginatedResponse,
-  PaginationParamsDto,
   buildPaginatedResponse,
 } from '../common/pagination';
 import { Client } from '../clients/entities/client.entity';
@@ -21,9 +20,19 @@ import { RoleName } from '../roles/entities/roles.entity';
 import { User } from '../users/entities/user.entity';
 import { CreateWorkOrderDto } from './dto/create-work-order.dto';
 import { DiligenceDto } from './dto/diligence.dto';
+import { FindWorkOrdersQueryDto } from './dto/find-work-orders-query.dto';
 import { UpdateWorkOrderDto } from './dto/update-work-order.dto';
 import { WorkOrder, WorkOrderStatus } from './entities/work-order.entity';
 import { WorkOrderImage } from './media/entities/work-order-image.entity';
+
+const ALLOWED_STATUS_TRANSITIONS: Record<
+  WorkOrderStatus,
+  WorkOrderStatus[]
+> = {
+  [WorkOrderStatus.PENDING]: [WorkOrderStatus.IN_PROGRESS],
+  [WorkOrderStatus.IN_PROGRESS]: [WorkOrderStatus.COMPLETED],
+  [WorkOrderStatus.COMPLETED]: [],
+};
 
 @Injectable()
 export class WorkOrdersService {
@@ -102,9 +111,9 @@ export class WorkOrdersService {
   }
 
   async findAll(
-    pagination: PaginationParamsDto,
+    query: FindWorkOrdersQueryDto,
   ): Promise<PaginatedResponse<WorkOrder>> {
-    const [data, total] = await this.workOrderRepository
+    const workOrderQuery = this.workOrderRepository
       .createQueryBuilder('workOrder')
       .leftJoinAndSelect('workOrder.client', 'client')
       .leftJoinAndSelect('client.user', 'clientUser')
@@ -112,15 +121,41 @@ export class WorkOrdersService {
       .leftJoinAndSelect('workOrder.quoteRequest', 'quoteRequest')
       .leftJoinAndSelect('workOrder.images', 'images')
       .orderBy('workOrder.createdAt', 'DESC')
-      .skip(pagination.offset)
-      .take(pagination.limit)
-      .getManyAndCount();
+      .skip(query.offset)
+      .take(query.limit);
+
+    if (query.technicianId !== undefined) {
+      workOrderQuery.andWhere('workOrder.technicianId = :technicianId', {
+        technicianId: query.technicianId,
+      });
+    }
+
+    if (query.clientId !== undefined) {
+      workOrderQuery.andWhere('workOrder.clientId = :clientId', {
+        clientId: query.clientId,
+      });
+    }
+
+    if (query.quoteRequestId !== undefined) {
+      workOrderQuery.andWhere(
+        'workOrder.quoteRequestId = :quoteRequestId',
+        { quoteRequestId: query.quoteRequestId },
+      );
+    }
+
+    if (query.status !== undefined) {
+      workOrderQuery.andWhere('workOrder.status = :status', {
+        status: query.status,
+      });
+    }
+
+    const [data, total] = await workOrderQuery.getManyAndCount();
 
     return buildPaginatedResponse(
       data,
       total,
-      pagination.page,
-      pagination.limit,
+      query.page,
+      query.limit,
     );
   }
 
@@ -175,6 +210,42 @@ export class WorkOrdersService {
     });
 
     Object.assign(workOrder, updateData);
+    const saved = await this.workOrderRepository.save(workOrder);
+
+    await this.auditService.log({
+      action: AuditAction.UPDATE,
+      entityName: 'WorkOrder',
+      entityId: saved.id,
+      userId: userId ?? null,
+      previousData,
+      newData: this.auditData(saved),
+    });
+
+    return this.findOne(saved.id);
+  }
+
+  async updateStatus(
+    id: string,
+    newStatus: WorkOrderStatus,
+    userId?: string,
+  ): Promise<WorkOrder> {
+    const workOrder = await this.workOrderRepository.findOneBy({ id });
+
+    if (!workOrder) {
+      throw new NotFoundException(`Work order with id "${id}" not found`);
+    }
+
+    const currentStatus = workOrder.status;
+    const allowedStatuses = ALLOWED_STATUS_TRANSITIONS[currentStatus];
+
+    if (!allowedStatuses.includes(newStatus)) {
+      throw new BadRequestException(
+        `No se puede cambiar de ${currentStatus} a ${newStatus}`,
+      );
+    }
+
+    const previousData = this.auditData(workOrder);
+    workOrder.status = newStatus;
     const saved = await this.workOrderRepository.save(workOrder);
 
     await this.auditService.log({
