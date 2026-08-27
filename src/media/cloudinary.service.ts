@@ -207,4 +207,28 @@ export class CloudinaryService implements OnModuleInit {
       uploadStream.end(buffer);
     });
   }
+
+async uploadImageOnly(file: UploadImageFile): Promise<{
+  publicId: string;
+  url: string;
+  secureUrl: string;
+  format: string;
+  resourceType: string;
+  width: number | null;
+  height: number | null;
+  bytes: number;
+}> {
+  this.validateImageFile(file);
+  const uploadResult = await this.uploadBuffer(file.buffer);
+  return {
+    publicId: uploadResult.public_id,
+    url: uploadResult.url,
+    secureUrl: uploadResult.secure_url,
+    format: uploadResult.format,
+    resourceType: uploadResult.resource_type,
+    width: uploadResult.width ?? null,
+    height: uploadResult.height ?? null,
+    bytes: uploadResult.bytes,
+  };
+}
 }

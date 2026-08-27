@@ -17,6 +17,8 @@ export enum WorkOrderStatus {
   COMPLETED = 'COMPLETED',
 }
 
+export type Material = { name: string; quantity: string };
+
 @Entity('work_orders')
 export class WorkOrder {
   @PrimaryGeneratedColumn('uuid')
@@ -57,7 +59,7 @@ export class WorkOrder {
   observations?: string | null;
 
   @Column({ type: 'jsonb', nullable: true })
-  materials?: Record<string, unknown> | null;
+  materials?: Material[] | null;
 
   @CreateDateColumn()
   createdAt!: Date;
