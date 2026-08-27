@@ -188,11 +188,13 @@ describe('ProjectsController', () => {
     it('debe restaurar un proyecto eliminado y retornarlo', async () => {
       const project = buildProject({ deletedAt: null });
       restoreMock.mockResolvedValue(project);
+      findOneMock.mockResolvedValue(project as any);
 
       const result = await projectsController.restore(project.id);
 
       expect(result).toBe(project);
       expect(restoreMock).toHaveBeenCalledWith(project.id);
+      expect(findOneMock).toHaveBeenCalledWith(project.id);
     });
   });
 

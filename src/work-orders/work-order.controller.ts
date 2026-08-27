@@ -1,4 +1,5 @@
 import {
+  BadRequestException,
   Body,
   Controller,
   Get,
@@ -9,16 +10,21 @@ import {
   Patch,
   Post,
   Query,
+  UploadedFiles,
   UseGuards,
+  UseInterceptors,
 } from '@nestjs/common';
+import { FilesInterceptor } from '@nestjs/platform-express';
 import {
   ApiBearerAuth,
   ApiBody,
+  ApiConsumes,
   ApiOperation,
   ApiParam,
   ApiResponse,
   ApiTags,
 } from '@nestjs/swagger';
+import 'multer';
 import { JwtAuthGuard } from '../auth/guards/jwt-auth.guard';
 import { WorkOrdersService } from './work-order.service';
 import { Auth } from '../common/decorators/auth.decorator';
@@ -62,8 +68,14 @@ export class WorkOrdersController {
     description: 'Orden creada correctamente.',
     type: WorkOrder,
   })
-  @ApiResponse({ status: HttpStatus.BAD_REQUEST, description: 'Datos inválidos.' })
-  @ApiResponse({ status: HttpStatus.NOT_FOUND, description: 'Relación no encontrada.' })
+  @ApiResponse({
+    status: HttpStatus.BAD_REQUEST,
+    description: 'Datos inválidos.',
+  })
+  @ApiResponse({
+    status: HttpStatus.NOT_FOUND,
+    description: 'Relación no encontrada.',
+  })
   async create(
     @Body() createWorkOrderDto: CreateWorkOrderDto,
     @CurrentUser('userId') userId: string | undefined,
@@ -92,9 +104,18 @@ export class WorkOrdersController {
   @ApiBearerAuth('access-token')
   @ApiOperation({ summary: 'Obtener una orden de trabajo (ADMIN)' })
   @ApiParam({ name: 'id', type: 'string', format: 'uuid' })
-  @ApiResponse({ status: HttpStatus.OK, description: 'Detalle de la orden.', type: WorkOrder })
-  @ApiResponse({ status: HttpStatus.NOT_FOUND, description: 'Orden no encontrada.' })
-  async findOne(@Param('id', new ParseUUIDPipe()) id: string): Promise<WorkOrder> {
+  @ApiResponse({
+    status: HttpStatus.OK,
+    description: 'Detalle de la orden.',
+    type: WorkOrder,
+  })
+  @ApiResponse({
+    status: HttpStatus.NOT_FOUND,
+    description: 'Orden no encontrada.',
+  })
+  async findOne(
+    @Param('id', new ParseUUIDPipe()) id: string,
+  ): Promise<WorkOrder> {
     return this.workOrdersService.findOne(id);
   }
 
@@ -104,18 +125,31 @@ export class WorkOrdersController {
   @ApiOperation({ summary: 'Actualizar una orden de trabajo (ADMIN)' })
   @ApiParam({ name: 'id', type: 'string', format: 'uuid' })
   @ApiBody({ type: UpdateWorkOrderDto })
-  @ApiResponse({ status: HttpStatus.OK, description: 'Orden actualizada.', type: WorkOrder })
-  @ApiResponse({ status: HttpStatus.BAD_REQUEST, description: 'Datos inválidos.' })
-  @ApiResponse({ status: HttpStatus.NOT_FOUND, description: 'Orden o técnico no encontrado.' })
+  @ApiResponse({
+    status: HttpStatus.OK,
+    description: 'Orden actualizada.',
+    type: WorkOrder,
+  })
+  @ApiResponse({
+    status: HttpStatus.BAD_REQUEST,
+    description: 'Datos inválidos.',
+  })
+  @ApiResponse({
+    status: HttpStatus.NOT_FOUND,
+    description: 'Orden o técnico no encontrado.',
+  })
   async update(
     @Param('id', new ParseUUIDPipe()) id: string,
     @Body() updateWorkOrderDto: UpdateWorkOrderDto,
     @CurrentUser('userId') userId: string | undefined,
   ): Promise<WorkOrder> {
     return this.workOrdersService.update(id, updateWorkOrderDto, userId);
+  }
+
   @Auth(RoleName.TECHNICIAN)
   @Patch(':id/diligence')
   @ApiOperation({ summary: 'Diligenciar OT - Técnico asignado' })
+  @ApiParam({ name: 'id', type: 'string', format: 'uuid' })
   @ApiBody({ type: DiligenceDto })
   @ApiResponse({
     status: 200,
@@ -129,7 +163,7 @@ export class WorkOrdersController {
   })
   @ApiResponse({ status: 404, description: 'OT no encontrada' })
   async diligence(
-    @Param('id') id: string,
+    @Param('id', new ParseUUIDPipe()) id: string,
     @CurrentUser('userId') userId: string,
     @Body() dto: DiligenceDto,
   ) {
@@ -140,6 +174,7 @@ export class WorkOrdersController {
   @Post(':id/photos')
   @UseInterceptors(FilesInterceptor('photos', 10))
   @ApiOperation({ summary: 'Subir fotos a la OT - Técnico asignado' })
+  @ApiParam({ name: 'id', type: 'string', format: 'uuid' })
   @ApiConsumes('multipart/form-data')
   @ApiBody({
     schema: {
@@ -170,7 +205,7 @@ export class WorkOrdersController {
   @ApiResponse({ status: 403, description: 'No es el técnico asignado' })
   @ApiResponse({ status: 404, description: 'OT no encontrada' })
   async uploadPhotos(
-    @Param('id') workOrderId: string,
+    @Param('id', new ParseUUIDPipe()) workOrderId: string,
     @CurrentUser('userId') userId: string,
     @UploadedFiles() files: Express.Multer.File[],
   ) {
@@ -180,3 +215,4 @@ export class WorkOrdersController {
     return this.workOrdersService.addPhotos(workOrderId, userId, files);
   }
 }
+
