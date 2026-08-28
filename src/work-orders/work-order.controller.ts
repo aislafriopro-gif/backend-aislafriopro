@@ -10,6 +10,7 @@ import {
   Patch,
   Post,
   Query,
+  Res,
   UploadedFiles,
   UseGuards,
   UseInterceptors,
@@ -25,19 +26,18 @@ import {
   ApiResponse,
   ApiTags,
 } from '@nestjs/swagger';
+import { Response } from 'express';
 import 'multer';
 import { JwtAuthGuard } from '../auth/guards/jwt-auth.guard';
-import { WorkOrdersService } from './work-order.service';
 import { Auth } from '../common/decorators/auth.decorator';
-import { RoleName } from '../roles/entities/roles.entity';
 import { CurrentUser } from '../common/decorators/current-user.decorator';
-import { WorkOrder, WorkOrderStatus } from './entities/work-order.entity';
+import { RoleName } from '../roles/entities/roles.entity';
 import { CreateWorkOrderDto } from './dto/create-work-order.dto';
-import { UpdateWorkOrderDto } from './dto/update-work-order.dto';
-import { PaginatedResponse } from '../common/pagination';
 import { DiligenceDto } from './dto/diligence.dto';
-import { FindWorkOrdersQueryDto } from './dto/find-work-orders-query.dto';
-import { UpdateWorkOrderStatusDto } from './dto/update-work-order-status.dto';
+import { UpdateWorkOrderDto } from './dto/update-work-order.dto';
+import { WorkOrder } from './entities/work-order.entity';
+import { PaginatedResponse, PaginationParamsDto } from '../common/pagination';
+import { WorkOrdersService } from './work-order.service';
 
 @ApiTags('Work Orders')
 @UseGuards(JwtAuthGuard)
@@ -128,38 +128,42 @@ export class WorkOrdersController {
     return this.workOrdersService.findAll(query);
   }
 
-  @Patch(':id/status')
-  @Auth(RoleName.ADMIN)
+  @Get(':id/pdf')
+  @Auth(RoleName.ADMIN, RoleName.CLIENT)
   @ApiBearerAuth('access-token')
-  @ApiOperation({ summary: 'Actualizar el estado de una orden de trabajo (ADMIN)' })
+  @ApiOperation({ summary: 'Generar PDF de la orden de trabajo' })
   @ApiParam({ name: 'id', type: 'string', format: 'uuid' })
-  @ApiBody({ type: UpdateWorkOrderStatusDto })
   @ApiResponse({
     status: HttpStatus.OK,
-    description: 'Estado de la orden actualizado correctamente.',
-    type: WorkOrder,
+    description: 'PDF generado correctamente',
+    content: {
+      'application/pdf': {
+        schema: { type: 'string', format: 'binary' },
+      },
+    },
   })
-  @ApiResponse({
-    status: HttpStatus.BAD_REQUEST,
-    description: 'La transición de estado no está permitida.',
-  })
+  @ApiResponse({ status: HttpStatus.FORBIDDEN, description: 'Sin permisos' })
   @ApiResponse({
     status: HttpStatus.NOT_FOUND,
-    description: 'Orden de trabajo no encontrada.',
+    description: 'Orden no encontrada',
   })
-  async updateStatus(
+  async generatePdf(
     @Param('id', new ParseUUIDPipe()) id: string,
-    @Body() updateWorkOrderStatusDto: UpdateWorkOrderStatusDto,
-    @CurrentUser('userId') userId: string | undefined,
-  ): Promise<WorkOrder> {
-    return this.workOrdersService.updateStatus(
+    @CurrentUser() user: { userId: string; id: string; role: { name: string } },
+    @Res({ passthrough: false }) res: Response,
+  ): Promise<void> {
+    const pdfBuffer = await this.workOrdersService.generateWorkOrderPdf(
       id,
-      updateWorkOrderStatusDto.status,
-      userId,
+      user,
     );
+    res.set({
+      'Content-Type': 'application/pdf',
+      'Content-Disposition': `attachment; filename=work-order-${id}.pdf`,
+      'Content-Length': pdfBuffer.length,
+    });
+    res.send(pdfBuffer);
   }
 
-  // Debe declararse después de GET /my para no interpretar "my" como UUID.
   @Get(':id')
   @Auth(RoleName.ADMIN)
   @ApiBearerAuth('access-token')
@@ -276,4 +280,3 @@ export class WorkOrdersController {
     return this.workOrdersService.addPhotos(workOrderId, userId, files);
   }
 }
-
