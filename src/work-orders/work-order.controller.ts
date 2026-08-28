@@ -10,6 +10,7 @@ import {
   Patch,
   Post,
   Query,
+  Res,
   UploadedFiles,
   UseGuards,
   UseInterceptors,
@@ -24,17 +25,18 @@ import {
   ApiResponse,
   ApiTags,
 } from '@nestjs/swagger';
+import { Response } from 'express';
 import 'multer';
 import { JwtAuthGuard } from '../auth/guards/jwt-auth.guard';
-import { WorkOrdersService } from './work-order.service';
 import { Auth } from '../common/decorators/auth.decorator';
-import { RoleName } from '../roles/entities/roles.entity';
 import { CurrentUser } from '../common/decorators/current-user.decorator';
-import { WorkOrder } from './entities/work-order.entity';
+import { RoleName } from '../roles/entities/roles.entity';
 import { CreateWorkOrderDto } from './dto/create-work-order.dto';
-import { UpdateWorkOrderDto } from './dto/update-work-order.dto';
-import { PaginatedResponse, PaginationParamsDto } from '../common/pagination';
 import { DiligenceDto } from './dto/diligence.dto';
+import { UpdateWorkOrderDto } from './dto/update-work-order.dto';
+import { WorkOrder } from './entities/work-order.entity';
+import { PaginatedResponse, PaginationParamsDto } from '../common/pagination';
+import { WorkOrdersService } from './work-order.service';
 
 @ApiTags('Work Orders')
 @UseGuards(JwtAuthGuard)
@@ -98,7 +100,42 @@ export class WorkOrdersController {
     return this.workOrdersService.findAll(query);
   }
 
-  // Debe declararse después de GET /my para no interpretar "my" como UUID.
+  @Get(':id/pdf')
+  @Auth(RoleName.ADMIN, RoleName.CLIENT)
+  @ApiBearerAuth('access-token')
+  @ApiOperation({ summary: 'Generar PDF de la orden de trabajo' })
+  @ApiParam({ name: 'id', type: 'string', format: 'uuid' })
+  @ApiResponse({
+    status: HttpStatus.OK,
+    description: 'PDF generado correctamente',
+    content: {
+      'application/pdf': {
+        schema: { type: 'string', format: 'binary' },
+      },
+    },
+  })
+  @ApiResponse({ status: HttpStatus.FORBIDDEN, description: 'Sin permisos' })
+  @ApiResponse({
+    status: HttpStatus.NOT_FOUND,
+    description: 'Orden no encontrada',
+  })
+  async generatePdf(
+    @Param('id', new ParseUUIDPipe()) id: string,
+    @CurrentUser() user: { userId: string; id: string; role: { name: string } },
+    @Res({ passthrough: false }) res: Response,
+  ): Promise<void> {
+    const pdfBuffer = await this.workOrdersService.generateWorkOrderPdf(
+      id,
+      user,
+    );
+    res.set({
+      'Content-Type': 'application/pdf',
+      'Content-Disposition': `attachment; filename=work-order-${id}.pdf`,
+      'Content-Length': pdfBuffer.length,
+    });
+    res.send(pdfBuffer);
+  }
+
   @Get(':id')
   @Auth(RoleName.ADMIN)
   @ApiBearerAuth('access-token')
@@ -215,4 +252,3 @@ export class WorkOrdersController {
     return this.workOrdersService.addPhotos(workOrderId, userId, files);
   }
 }
-
