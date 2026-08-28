@@ -7,7 +7,7 @@ import {
 import { InjectRepository } from '@nestjs/typeorm';
 import { IsNull, Repository } from 'typeorm';
 import 'multer';
-import PDFDocument from 'pdfkit';
+import PDFDocument = require('pdfkit');
 import { AuditAction } from '../audit/entities/audit-action.entity';
 import { AuditService } from '../audit/audit.service';
 import {
