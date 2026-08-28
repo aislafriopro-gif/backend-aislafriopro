@@ -1,5 +1,4 @@
 import {
-  BadRequestException,
   ForbiddenException,
   Injectable,
   NotFoundException,
@@ -7,11 +6,11 @@ import {
 import { InjectRepository } from '@nestjs/typeorm';
 import { IsNull, Repository } from 'typeorm';
 import 'multer';
+import PDFDocument from 'pdfkit';
 import { AuditAction } from '../audit/entities/audit-action.entity';
 import { AuditService } from '../audit/audit.service';
 import {
   PaginatedResponse,
-  PaginationParamsDto,
   buildPaginatedResponse,
 } from '../common/pagination';
 import { Client } from '../clients/entities/client.entity';
@@ -21,9 +20,16 @@ import { RoleName } from '../roles/entities/roles.entity';
 import { User } from '../users/entities/user.entity';
 import { CreateWorkOrderDto } from './dto/create-work-order.dto';
 import { DiligenceDto } from './dto/diligence.dto';
+import { FindWorkOrdersQueryDto } from './dto/find-work-orders-query.dto';
 import { UpdateWorkOrderDto } from './dto/update-work-order.dto';
 import { WorkOrder, WorkOrderStatus } from './entities/work-order.entity';
 import { WorkOrderImage } from './media/entities/work-order-image.entity';
+
+interface PdfUser {
+  userId?: string;
+  id?: string;
+  role?: { name?: string };
+}
 
 @Injectable()
 export class WorkOrdersService {
@@ -102,9 +108,9 @@ export class WorkOrdersService {
   }
 
   async findAll(
-    pagination: PaginationParamsDto,
+    query: FindWorkOrdersQueryDto,
   ): Promise<PaginatedResponse<WorkOrder>> {
-    const [data, total] = await this.workOrderRepository
+    const workOrderQuery = this.workOrderRepository
       .createQueryBuilder('workOrder')
       .leftJoinAndSelect('workOrder.client', 'client')
       .leftJoinAndSelect('client.user', 'clientUser')
@@ -112,15 +118,41 @@ export class WorkOrdersService {
       .leftJoinAndSelect('workOrder.quoteRequest', 'quoteRequest')
       .leftJoinAndSelect('workOrder.images', 'images')
       .orderBy('workOrder.createdAt', 'DESC')
-      .skip(pagination.offset)
-      .take(pagination.limit)
-      .getManyAndCount();
+      .skip(query.offset)
+      .take(query.limit);
+
+    if (query.technicianId !== undefined) {
+      workOrderQuery.andWhere('workOrder.technicianId = :technicianId', {
+        technicianId: query.technicianId,
+      });
+    }
+
+    if (query.clientId !== undefined) {
+      workOrderQuery.andWhere('workOrder.clientId = :clientId', {
+        clientId: query.clientId,
+      });
+    }
+
+    if (query.quoteRequestId !== undefined) {
+      workOrderQuery.andWhere(
+        'workOrder.quoteRequestId = :quoteRequestId',
+        { quoteRequestId: query.quoteRequestId },
+      );
+    }
+
+    if (query.status !== undefined) {
+      workOrderQuery.andWhere('workOrder.status = :status', {
+        status: query.status,
+      });
+    }
+
+    const [data, total] = await workOrderQuery.getManyAndCount();
 
     return buildPaginatedResponse(
       data,
       total,
-      pagination.page,
-      pagination.limit,
+      query.page,
+      query.limit,
     );
   }
 
@@ -175,6 +207,42 @@ export class WorkOrdersService {
     });
 
     Object.assign(workOrder, updateData);
+    const saved = await this.workOrderRepository.save(workOrder);
+
+    await this.auditService.log({
+      action: AuditAction.UPDATE,
+      entityName: 'WorkOrder',
+      entityId: saved.id,
+      userId: userId ?? null,
+      previousData,
+      newData: this.auditData(saved),
+    });
+
+    return this.findOne(saved.id);
+  }
+
+  async updateStatus(
+    id: string,
+    newStatus: WorkOrderStatus,
+    userId?: string,
+  ): Promise<WorkOrder> {
+    const workOrder = await this.workOrderRepository.findOneBy({ id });
+
+    if (!workOrder) {
+      throw new NotFoundException(`Work order with id "${id}" not found`);
+    }
+
+    const currentStatus = workOrder.status;
+    const allowedStatuses = ALLOWED_STATUS_TRANSITIONS[currentStatus];
+
+    if (!allowedStatuses.includes(newStatus)) {
+      throw new BadRequestException(
+        `No se puede cambiar de ${currentStatus} a ${newStatus}`,
+      );
+    }
+
+    const previousData = this.auditData(workOrder);
+    workOrder.status = newStatus;
     const saved = await this.workOrderRepository.save(workOrder);
 
     await this.auditService.log({
@@ -270,6 +338,214 @@ export class WorkOrdersService {
     return uploadedImages;
   }
 
+  async generateWorkOrderPdf(id: string, user: PdfUser): Promise<Buffer> {
+    const userId = user.userId ?? user.id;
+    const userRole = user.role?.name;
+
+    if (!userId) {
+      throw new ForbiddenException('Usuario no autenticado');
+    }
+
+    const workOrder = await this.workOrderRepository
+      .createQueryBuilder('workOrder')
+      .leftJoinAndSelect('workOrder.client', 'client')
+      .leftJoinAndSelect('client.user', 'clientUser')
+      .leftJoinAndSelect('workOrder.technician', 'technician')
+      .leftJoinAndSelect('workOrder.quoteRequest', 'quoteRequest')
+      .leftJoinAndSelect('quoteRequest.service', 'service')
+      .leftJoinAndSelect('workOrder.images', 'images')
+      .where('workOrder.id = :id', { id })
+      .getOne();
+
+    if (!workOrder) {
+      throw new NotFoundException(`Work order with id "${id}" not found`);
+    }
+
+    if (userRole === RoleName.CLIENT) {
+      if (!workOrder.client || workOrder.client.userId !== userId) {
+        throw new ForbiddenException(
+          'No tiene permisos para descargar esta orden',
+        );
+      }
+    }
+
+    const sortedMaterials = workOrder.materials
+      ? [...workOrder.materials].sort((a, b) => a.name.localeCompare(b.name))
+      : [];
+
+    return new Promise<Buffer>((resolve, reject) => {
+      const doc = new PDFDocument({ margin: 50, size: 'A4' });
+      const chunks: Buffer[] = [];
+
+      doc.on('data', (chunk: Buffer) => chunks.push(chunk));
+      doc.on('end', () => resolve(Buffer.concat(chunks)));
+      doc.on('error', (err: Error) => reject(err));
+
+      // HEADER
+      doc
+        .fontSize(24)
+        .font('Helvetica-Bold')
+        .text('ORDEN DE TRABAJO', { align: 'center' });
+      doc.moveDown(0.5);
+      doc
+        .fontSize(12)
+        .font('Helvetica')
+        .text(`N° OT: ${workOrder.id}`, { align: 'center' });
+      doc.moveDown(2);
+
+      // CLIENTE
+      doc.fontSize(16).font('Helvetica-Bold').text('DATOS DEL CLIENTE');
+      doc.moveTo(50, doc.y).lineTo(550, doc.y).stroke();
+      doc.moveDown(0.5);
+      doc.fontSize(11).font('Helvetica');
+      doc.text(`Nombre: ${workOrder.client?.user?.name ?? 'N/A'}`);
+      doc.text(`Email: ${workOrder.client?.user?.email ?? 'N/A'}`);
+      doc.text(`Teléfono: ${workOrder.client?.user?.phone ?? 'N/A'}`);
+      doc.moveDown(1.5);
+
+      // SERVICIO Y COTIZACIÓN
+      if (workOrder.quoteRequest) {
+        doc.fontSize(16).font('Helvetica-Bold').text('SERVICIO Y COTIZACIÓN');
+        doc.moveTo(50, doc.y).lineTo(550, doc.y).stroke();
+        doc.moveDown(0.5);
+        doc.fontSize(11).font('Helvetica');
+        if (workOrder.quoteRequest.service) {
+          doc.text(`Servicio: ${workOrder.quoteRequest.service.name}`);
+        }
+        doc.text(`Cotización: ${workOrder.quoteRequest.name}`);
+        doc.text(`Descripción: ${workOrder.quoteRequest.message ?? 'N/A'}`, {
+          width: 500,
+        });
+        doc.moveDown(1.5);
+      }
+
+      // TÉCNICO
+      doc.fontSize(16).font('Helvetica-Bold').text('TÉCNICO ASIGNADO');
+      doc.moveTo(50, doc.y).lineTo(550, doc.y).stroke();
+      doc.moveDown(0.5);
+      doc.fontSize(11).font('Helvetica');
+      doc.text(`Nombre: ${workOrder.technician?.name ?? 'No asignado'}`);
+      doc.text(`Email: ${workOrder.technician?.email ?? 'N/A'}`);
+      doc.moveDown(1.5);
+
+      // TRABAJO REALIZADO
+      doc.fontSize(16).font('Helvetica-Bold').text('TRABAJO REALIZADO');
+      doc.moveTo(50, doc.y).lineTo(550, doc.y).stroke();
+      doc.moveDown(0.5);
+      doc.fontSize(11).font('Helvetica');
+      doc.text(workOrder.workDone ?? 'No diligenciado', { width: 500 });
+      doc.moveDown(1.5);
+
+      // MATERIALES
+      doc.fontSize(16).font('Helvetica-Bold').text('MATERIALES UTILIZADOS');
+      doc.moveTo(50, doc.y).lineTo(550, doc.y).stroke();
+      doc.moveDown(0.5);
+
+      if (sortedMaterials.length > 0) {
+        const tableTop = doc.y;
+        doc.font('Helvetica-Bold').fontSize(11);
+        doc.text('Nombre', 50, tableTop, { width: 350 });
+        doc.text('Cantidad', 400, tableTop, { width: 150 });
+        doc
+          .moveTo(50, tableTop + 15)
+          .lineTo(550, tableTop + 15)
+          .stroke();
+
+        doc.font('Helvetica').fontSize(10);
+        let currentY = tableTop + 25;
+
+        for (const material of sortedMaterials) {
+          doc.text(material.name, 50, currentY, { width: 350 });
+          doc.text(material.quantity.toString(), 400, currentY, {
+            width: 150,
+          });
+          currentY += 18;
+        }
+
+        doc.y = currentY + 10;
+        doc.x = 50;
+      } else {
+        doc.fontSize(11).text('No se registraron materiales');
+        doc.moveDown(0.5);
+      }
+      doc.moveDown(1.5);
+
+      // OBSERVACIONES
+      doc.fontSize(16).font('Helvetica-Bold').text('OBSERVACIONES');
+      doc.moveTo(50, doc.y).lineTo(550, doc.y).stroke();
+      doc.moveDown(0.5);
+      doc.fontSize(11).font('Helvetica');
+      doc.text(workOrder.observations ?? 'Sin observaciones', {
+        width: 500,
+        align: 'left',
+      });
+      doc.moveDown(1.5);
+
+      // FOTOS
+      if (workOrder.images && workOrder.images.length > 0) {
+        if (doc.y > 650) {
+          doc.addPage();
+        }
+
+        doc.fontSize(16).font('Helvetica-Bold').text('FOTOS DEL TRABAJO');
+        doc.moveTo(50, doc.y).lineTo(550, doc.y).stroke();
+        doc.moveDown(1);
+
+        for (let i = 0; i < workOrder.images.length; i++) {
+          const image = workOrder.images[i];
+
+          if (doc.y > 650) {
+            doc.addPage();
+          }
+
+          try {
+            fetch(image.url)
+              .then((response: Response) => {
+                if (!response.ok) {
+                  throw new Error(`Failed to download image: ${image.url}`);
+                }
+                return response.arrayBuffer();
+              })
+              .then((arrayBuffer: ArrayBuffer) => {
+                const imageBuffer = Buffer.from(arrayBuffer);
+                doc.image(imageBuffer, {
+                  fit: [400, 400],
+                  align: 'center',
+                });
+                doc.moveDown(0.5);
+                doc
+                  .fontSize(9)
+                  .font('Helvetica')
+                  .text(`Foto ${i + 1} de ${workOrder.images!.length}`, {
+                    align: 'center',
+                  });
+                doc.moveDown(1);
+              })
+              .catch((error: Error) => {
+                console.error(`Error loading image ${i + 1}:`, error);
+                doc
+                  .fontSize(10)
+                  .font('Helvetica')
+                  .text(`Error al cargar foto ${i + 1}`, { align: 'center' });
+                doc.moveDown(1);
+              });
+          } catch (error) {
+            const err =
+              error instanceof Error ? error : new Error(String(error));
+            console.error(`Error loading image ${i + 1}:`, err);
+            doc
+              .fontSize(10)
+              .font('Helvetica')
+              .text(`Error al cargar foto ${i + 1}`, { align: 'center' });
+            doc.moveDown(1);
+          }
+        }
+      }
+
+      doc.end();
+    });
+  }
+
   private async findTechnician(id: string): Promise<User> {
     const technician = await this.userRepository.findOne({
       where: { id, deletedAt: IsNull() },
@@ -296,4 +572,3 @@ export class WorkOrdersService {
     };
   }
 }
-

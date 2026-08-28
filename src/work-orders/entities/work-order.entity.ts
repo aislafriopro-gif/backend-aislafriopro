@@ -72,4 +72,3 @@ export class WorkOrder {
   @UpdateDateColumn()
   updatedAt!: Date;
 }
-

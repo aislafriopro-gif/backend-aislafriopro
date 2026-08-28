@@ -1,10 +1,5 @@
 import { ApiProperty } from '@nestjs/swagger';
-import {
-  IsArray,
-  IsNotEmpty,
-  IsString,
-  ValidateNested,
-} from 'class-validator';
+import { IsArray, IsNotEmpty, IsString, ValidateNested } from 'class-validator';
 import { Type } from 'class-transformer';
 
 export class MaterialDto {
@@ -53,4 +48,3 @@ export class DiligenceDto {
   @Type(() => MaterialDto)
   materials!: MaterialDto[];
 }
-

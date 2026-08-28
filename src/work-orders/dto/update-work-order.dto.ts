@@ -63,4 +63,3 @@ export class UpdateWorkOrderDto {
   @IsUUID('4', { message: 'El technicianId debe ser un UUID válido.' })
   technicianId?: string;
 }
-
