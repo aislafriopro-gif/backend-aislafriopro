@@ -21,6 +21,7 @@ import {
   ApiConsumes,
   ApiOperation,
   ApiParam,
+  ApiQuery,
   ApiResponse,
   ApiTags,
 } from '@nestjs/swagger';
@@ -30,11 +31,13 @@ import { WorkOrdersService } from './work-order.service';
 import { Auth } from '../common/decorators/auth.decorator';
 import { RoleName } from '../roles/entities/roles.entity';
 import { CurrentUser } from '../common/decorators/current-user.decorator';
-import { WorkOrder } from './entities/work-order.entity';
+import { WorkOrder, WorkOrderStatus } from './entities/work-order.entity';
 import { CreateWorkOrderDto } from './dto/create-work-order.dto';
 import { UpdateWorkOrderDto } from './dto/update-work-order.dto';
-import { PaginatedResponse, PaginationParamsDto } from '../common/pagination';
+import { PaginatedResponse } from '../common/pagination';
 import { DiligenceDto } from './dto/diligence.dto';
+import { FindWorkOrdersQueryDto } from './dto/find-work-orders-query.dto';
+import { UpdateWorkOrderStatusDto } from './dto/update-work-order-status.dto';
 
 @ApiTags('Work Orders')
 @UseGuards(JwtAuthGuard)
@@ -87,15 +90,73 @@ export class WorkOrdersController {
   @Auth(RoleName.ADMIN)
   @ApiBearerAuth('access-token')
   @ApiOperation({ summary: 'Listar órdenes de trabajo (ADMIN)' })
+  @ApiQuery({
+    name: 'technicianId',
+    required: false,
+    type: String,
+    format: 'uuid',
+    description: 'Filtrar por el técnico asignado.',
+  })
+  @ApiQuery({
+    name: 'clientId',
+    required: false,
+    type: String,
+    format: 'uuid',
+    description: 'Filtrar por el cliente asociado.',
+  })
+  @ApiQuery({
+    name: 'quoteRequestId',
+    required: false,
+    type: String,
+    format: 'uuid',
+    description: 'Filtrar por la solicitud de cotización asociada.',
+  })
+  @ApiQuery({
+    name: 'status',
+    required: false,
+    enum: WorkOrderStatus,
+    description: 'Filtrar por el estado exacto de la orden.',
+  })
   @ApiResponse({
     status: HttpStatus.OK,
     description: 'Listado paginado de órdenes de trabajo.',
     type: WorkOrder,
   })
   async findAll(
-    @Query() query: PaginationParamsDto,
+    @Query() query: FindWorkOrdersQueryDto,
   ): Promise<PaginatedResponse<WorkOrder>> {
     return this.workOrdersService.findAll(query);
+  }
+
+  @Patch(':id/status')
+  @Auth(RoleName.ADMIN)
+  @ApiBearerAuth('access-token')
+  @ApiOperation({ summary: 'Actualizar el estado de una orden de trabajo (ADMIN)' })
+  @ApiParam({ name: 'id', type: 'string', format: 'uuid' })
+  @ApiBody({ type: UpdateWorkOrderStatusDto })
+  @ApiResponse({
+    status: HttpStatus.OK,
+    description: 'Estado de la orden actualizado correctamente.',
+    type: WorkOrder,
+  })
+  @ApiResponse({
+    status: HttpStatus.BAD_REQUEST,
+    description: 'La transición de estado no está permitida.',
+  })
+  @ApiResponse({
+    status: HttpStatus.NOT_FOUND,
+    description: 'Orden de trabajo no encontrada.',
+  })
+  async updateStatus(
+    @Param('id', new ParseUUIDPipe()) id: string,
+    @Body() updateWorkOrderStatusDto: UpdateWorkOrderStatusDto,
+    @CurrentUser('userId') userId: string | undefined,
+  ): Promise<WorkOrder> {
+    return this.workOrdersService.updateStatus(
+      id,
+      updateWorkOrderStatusDto.status,
+      userId,
+    );
   }
 
   // Debe declararse después de GET /my para no interpretar "my" como UUID.
