@@ -133,7 +133,9 @@ export class WorkOrdersController {
   @Patch(':id/status')
   @Auth(RoleName.ADMIN)
   @ApiBearerAuth('access-token')
-  @ApiOperation({ summary: 'Actualizar el estado de una orden de trabajo (ADMIN)' })
+  @ApiOperation({
+    summary: 'Actualizar el estado de una orden de trabajo (ADMIN)',
+  })
   @ApiParam({ name: 'id', type: 'string', format: 'uuid' })
   @ApiBody({ type: UpdateWorkOrderStatusDto })
   @ApiResponse({
@@ -162,7 +164,7 @@ export class WorkOrdersController {
   }
 
   @Get(':id/pdf')
-  @Auth(RoleName.ADMIN, RoleName.CLIENT)
+  @Auth(RoleName.ADMIN, RoleName.CLIENT, RoleName.TECHNICIAN)
   @ApiBearerAuth('access-token')
   @ApiOperation({ summary: 'Generar PDF de la orden de trabajo' })
   @ApiParam({ name: 'id', type: 'string', format: 'uuid' })
@@ -182,7 +184,7 @@ export class WorkOrdersController {
   })
   async generatePdf(
     @Param('id', new ParseUUIDPipe()) id: string,
-    @CurrentUser() user: { userId: string; id: string; role: { name: string } },
+    @CurrentUser() user: { userId: string; id?: string; role: RoleName },
     @Res({ passthrough: false }) res: Response,
   ): Promise<void> {
     const pdfBuffer = await this.workOrdersService.generateWorkOrderPdf(
