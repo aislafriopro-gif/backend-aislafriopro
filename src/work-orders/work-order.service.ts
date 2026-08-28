@@ -1,4 +1,5 @@
 import {
+  BadRequestException,
   ForbiddenException,
   Injectable,
   NotFoundException,
@@ -24,6 +25,15 @@ import { FindWorkOrdersQueryDto } from './dto/find-work-orders-query.dto';
 import { UpdateWorkOrderDto } from './dto/update-work-order.dto';
 import { WorkOrder, WorkOrderStatus } from './entities/work-order.entity';
 import { WorkOrderImage } from './media/entities/work-order-image.entity';
+
+const ALLOWED_STATUS_TRANSITIONS: Record<
+  WorkOrderStatus,
+  WorkOrderStatus[]
+> = {
+  [WorkOrderStatus.PENDING]: [WorkOrderStatus.IN_PROGRESS],
+  [WorkOrderStatus.IN_PROGRESS]: [WorkOrderStatus.COMPLETED],
+  [WorkOrderStatus.COMPLETED]: [],
+};
 
 interface PdfUser {
   userId?: string;
