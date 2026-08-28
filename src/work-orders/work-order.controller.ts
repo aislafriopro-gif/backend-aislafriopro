@@ -22,6 +22,7 @@ import {
   ApiConsumes,
   ApiOperation,
   ApiParam,
+  ApiQuery,
   ApiResponse,
   ApiTags,
 } from '@nestjs/swagger';
@@ -89,13 +90,40 @@ export class WorkOrdersController {
   @Auth(RoleName.ADMIN)
   @ApiBearerAuth('access-token')
   @ApiOperation({ summary: 'Listar órdenes de trabajo (ADMIN)' })
+  @ApiQuery({
+    name: 'technicianId',
+    required: false,
+    type: String,
+    format: 'uuid',
+    description: 'Filtrar por el técnico asignado.',
+  })
+  @ApiQuery({
+    name: 'clientId',
+    required: false,
+    type: String,
+    format: 'uuid',
+    description: 'Filtrar por el cliente asociado.',
+  })
+  @ApiQuery({
+    name: 'quoteRequestId',
+    required: false,
+    type: String,
+    format: 'uuid',
+    description: 'Filtrar por la solicitud de cotización asociada.',
+  })
+  @ApiQuery({
+    name: 'status',
+    required: false,
+    enum: WorkOrderStatus,
+    description: 'Filtrar por el estado exacto de la orden.',
+  })
   @ApiResponse({
     status: HttpStatus.OK,
     description: 'Listado paginado de órdenes de trabajo.',
     type: WorkOrder,
   })
   async findAll(
-    @Query() query: PaginationParamsDto,
+    @Query() query: FindWorkOrdersQueryDto,
   ): Promise<PaginatedResponse<WorkOrder>> {
     return this.workOrdersService.findAll(query);
   }
