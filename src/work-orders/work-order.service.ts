@@ -7,7 +7,7 @@ import {
 import { InjectRepository } from '@nestjs/typeorm';
 import { IsNull, Repository } from 'typeorm';
 import 'multer';
-import PDFDocument from 'pdfkit';
+import PDFDocument = require('pdfkit');
 import { AuditAction } from '../audit/entities/audit-action.entity';
 import { AuditService } from '../audit/audit.service';
 import {
@@ -26,10 +26,7 @@ import { UpdateWorkOrderDto } from './dto/update-work-order.dto';
 import { WorkOrder, WorkOrderStatus } from './entities/work-order.entity';
 import { WorkOrderImage } from './media/entities/work-order-image.entity';
 
-const ALLOWED_STATUS_TRANSITIONS: Record<
-  WorkOrderStatus,
-  WorkOrderStatus[]
-> = {
+const ALLOWED_STATUS_TRANSITIONS: Record<WorkOrderStatus, WorkOrderStatus[]> = {
   [WorkOrderStatus.PENDING]: [WorkOrderStatus.IN_PROGRESS],
   [WorkOrderStatus.IN_PROGRESS]: [WorkOrderStatus.COMPLETED],
   [WorkOrderStatus.COMPLETED]: [],
@@ -38,7 +35,7 @@ const ALLOWED_STATUS_TRANSITIONS: Record<
 interface PdfUser {
   userId?: string;
   id?: string;
-  role?: { name?: string };
+  role?: RoleName;
 }
 
 @Injectable()
@@ -144,10 +141,9 @@ export class WorkOrdersService {
     }
 
     if (query.quoteRequestId !== undefined) {
-      workOrderQuery.andWhere(
-        'workOrder.quoteRequestId = :quoteRequestId',
-        { quoteRequestId: query.quoteRequestId },
-      );
+      workOrderQuery.andWhere('workOrder.quoteRequestId = :quoteRequestId', {
+        quoteRequestId: query.quoteRequestId,
+      });
     }
 
     if (query.status !== undefined) {
@@ -158,12 +154,7 @@ export class WorkOrdersService {
 
     const [data, total] = await workOrderQuery.getManyAndCount();
 
-    return buildPaginatedResponse(
-      data,
-      total,
-      query.page,
-      query.limit,
-    );
+    return buildPaginatedResponse(data, total, query.page, query.limit);
   }
 
   async findOne(id: string): Promise<WorkOrder> {
@@ -350,7 +341,7 @@ export class WorkOrdersService {
 
   async generateWorkOrderPdf(id: string, user: PdfUser): Promise<Buffer> {
     const userId = user.userId ?? user.id;
-    const userRole = user.role?.name;
+    const userRole = user.role;
 
     if (!userId) {
       throw new ForbiddenException('Usuario no autenticado');
@@ -371,12 +362,24 @@ export class WorkOrdersService {
       throw new NotFoundException(`Work order with id "${id}" not found`);
     }
 
-    if (userRole === RoleName.CLIENT) {
+    if (userRole === RoleName.ADMIN) {
+      // ADMIN puede descargar cualquier PDF.
+    } else if (userRole === RoleName.CLIENT) {
       if (!workOrder.client || workOrder.client.userId !== userId) {
         throw new ForbiddenException(
           'No tiene permisos para descargar esta orden',
         );
       }
+    } else if (userRole === RoleName.TECHNICIAN) {
+      if (workOrder.technicianId !== userId) {
+        throw new ForbiddenException(
+          'No tiene permisos para descargar esta orden',
+        );
+      }
+    } else {
+      throw new ForbiddenException(
+        'No tiene permisos para descargar esta orden',
+      );
     }
 
     const sortedMaterials = workOrder.materials
