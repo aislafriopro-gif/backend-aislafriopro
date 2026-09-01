@@ -21,6 +21,7 @@ import { ProjectsModule } from './projects/projects.module';
 import { ClientsModule } from './clients/clients.module';
 import { DashboardModule } from './dashboard/dashboard.module';
 import { WorkOrdersModule } from './work-orders/work-orders.module';
+import { ProductInquiriesModule } from './product-inquiries/product-inquiries.module';
 
 @Module({
   imports: [
@@ -65,6 +66,7 @@ import { WorkOrdersModule } from './work-orders/work-orders.module';
     SiteSettingsModule,
     CloudinaryModule,
     ProductsModule,
+    ProductInquiriesModule,
     ProjectsModule,
     ClientsModule,
     DashboardModule,
