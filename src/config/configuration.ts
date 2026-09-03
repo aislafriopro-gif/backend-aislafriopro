@@ -7,6 +7,8 @@ export interface ApplicationConfiguration {
   };
   http: {
     corsOrigins: string[];
+    throttleTtl: number;
+    throttleLimit: number;
   };
   swagger: {
     enabled: boolean;
@@ -42,6 +44,8 @@ const DEFAULT_JWT_EXPIRES_IN = '15m';
 const DEFAULT_JWT_REFRESH_EXPIRES_IN_SECONDS = 60 * 60 * 24 * 7;
 const DEFAULT_CORS_ORIGINS = ['http://localhost:3000', 'http://localhost:5173'];
 const DEFAULT_SWAGGER_PATH = 'api/docs';
+const DEFAULT_THROTTLE_TTL = 60 * 1000;
+const DEFAULT_THROTTLE_LIMIT = 100;
 
 function readRequiredString(
   source: Record<string, unknown>,
@@ -321,6 +325,8 @@ export function validateEnvironment(
 
   readInteger(source, 'PORT', DEFAULT_PORT);
   readCorsOrigins(source, environment);
+  readPositiveInteger(source, 'THROTTLE_TTL', DEFAULT_THROTTLE_TTL);
+  readPositiveInteger(source, 'THROTTLE_LIMIT', DEFAULT_THROTTLE_LIMIT);
   readBoolean(source, 'SWAGGER_ENABLED', environment !== 'production');
   readSwaggerPath(source);
 
@@ -381,6 +387,16 @@ export default (): ApplicationConfiguration => {
     },
     http: {
       corsOrigins: readCorsOrigins(process.env, environment),
+      throttleTtl: readPositiveInteger(
+        process.env,
+        'THROTTLE_TTL',
+        DEFAULT_THROTTLE_TTL,
+      ),
+      throttleLimit: readPositiveInteger(
+        process.env,
+        'THROTTLE_LIMIT',
+        DEFAULT_THROTTLE_LIMIT,
+      ),
     },
     swagger: {
       enabled: readBoolean(
