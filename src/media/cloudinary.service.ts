@@ -3,6 +3,7 @@ import {
   Injectable,
   OnModuleInit,
   NotFoundException,
+  ServiceUnavailableException,
 } from '@nestjs/common';
 import { ConfigService } from '@nestjs/config';
 import { InjectRepository } from '@nestjs/typeorm';
@@ -97,7 +98,14 @@ export class CloudinaryService implements OnModuleInit {
   ): Promise<CloudinaryUploadResponse> {
     this.validateImageFile(file);
 
-    const uploadResult = await this.uploadBuffer(file.buffer);
+    let uploadResult: UploadApiResponse;
+    try {
+      uploadResult = await this.uploadBuffer(file.buffer);
+    } catch {
+      throw new ServiceUnavailableException(
+        'No se pudo subir la imagen. Intente nuevamente.',
+      );
+    }
 
     try {
       const media = this.mediaRepository.create({
@@ -219,7 +227,14 @@ async uploadImageOnly(file: UploadImageFile): Promise<{
   bytes: number;
 }> {
   this.validateImageFile(file);
-  const uploadResult = await this.uploadBuffer(file.buffer);
+  let uploadResult: UploadApiResponse;
+  try {
+    uploadResult = await this.uploadBuffer(file.buffer);
+  } catch {
+    throw new ServiceUnavailableException(
+      'No se pudo subir la imagen. Intente nuevamente.',
+    );
+  }
   return {
     publicId: uploadResult.public_id,
     url: uploadResult.url,
