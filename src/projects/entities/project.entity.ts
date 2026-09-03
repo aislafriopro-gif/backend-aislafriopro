@@ -13,7 +13,7 @@ import {
   UpdateDateColumn,
 } from 'typeorm';
 import { Service } from '../../services/entities/service.entity';
-import { User } from '../../users/entities/user.entity';
+import { Client } from '../../clients/entities/client.entity';
 import { ProjectImage } from '../media/entities/project-image.entity';
 
 @Entity('projects')
@@ -43,9 +43,9 @@ export class Project {
   @Column({ type: 'uuid', nullable: true })
   clientId!: string | null;
 
-  @ManyToOne(() => User, { onDelete: 'SET NULL', nullable: true })
+  @ManyToOne(() => Client, { onDelete: 'SET NULL', nullable: true })
   @JoinColumn({ name: 'clientId' })
-  client!: User | null;
+  client!: Client | null;
 
   @Column({ type: 'varchar', length: 255, nullable: true })
   clientDisplayName!: string | null;
