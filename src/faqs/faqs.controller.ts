@@ -41,6 +41,13 @@ export class FaqsController {
   @Get('all')
   @Auth(RoleName.ADMIN)
   @ApiOperation({ summary: 'Listar todas las preguntas frecuentes (ADMIN)' })
+  @ApiResponse({
+    status: 200,
+    description: 'Listado paginado de todas las preguntas frecuentes',
+    type: Faq,
+  })
+  @ApiResponse({ status: 401, description: 'No autenticado' })
+  @ApiResponse({ status: 403, description: 'Sin permisos' })
   async findAllAdmin(
     @Query() query: FindFaqsQueryDto,
   ): Promise<PaginatedResponse<Faq>> {
@@ -49,6 +56,11 @@ export class FaqsController {
 
   @Get()
   @ApiOperation({ summary: 'Listar preguntas frecuentes activas' })
+  @ApiResponse({
+    status: 200,
+    description: 'Listado paginado de preguntas frecuentes activas',
+    type: Faq,
+  })
   async findAll(
     @Query() query: FindFaqsQueryDto,
   ): Promise<PaginatedResponse<Faq>> {
@@ -58,6 +70,12 @@ export class FaqsController {
   @Get(':id')
   @ApiOperation({ summary: 'Obtener detalle de una pregunta frecuente activa' })
   @ApiParam({ name: 'id', type: 'string', format: 'uuid' })
+  @ApiResponse({
+    status: 200,
+    description: 'Pregunta frecuente encontrada',
+    type: Faq,
+  })
+  @ApiResponse({ status: 404, description: 'Pregunta frecuente no encontrada' })
   async findOne(@Param('id', new ParseUUIDPipe()) id: string): Promise<Faq> {
     return this.faqsService.findOne(id);
   }
@@ -66,6 +84,14 @@ export class FaqsController {
   @Auth(RoleName.ADMIN)
   @ApiOperation({ summary: 'Editar una pregunta frecuente (ADMIN)' })
   @ApiParam({ name: 'id', type: 'string', format: 'uuid' })
+  @ApiResponse({
+    status: 200,
+    description: 'Pregunta frecuente actualizada',
+    type: Faq,
+  })
+  @ApiResponse({ status: 401, description: 'No autenticado' })
+  @ApiResponse({ status: 403, description: 'Sin permisos' })
+  @ApiResponse({ status: 404, description: 'Pregunta frecuente no encontrada' })
   async update(
     @Param('id', new ParseUUIDPipe()) id: string,
     @Body() updateFaqDto: UpdateFaqDto,
@@ -78,6 +104,13 @@ export class FaqsController {
   @HttpCode(HttpStatus.NO_CONTENT)
   @ApiOperation({ summary: 'Eliminar una pregunta frecuente (ADMIN)' })
   @ApiParam({ name: 'id', type: 'string', format: 'uuid' })
+  @ApiResponse({
+    status: 204,
+    description: 'Pregunta frecuente eliminada',
+  })
+  @ApiResponse({ status: 401, description: 'No autenticado' })
+  @ApiResponse({ status: 403, description: 'Sin permisos' })
+  @ApiResponse({ status: 404, description: 'Pregunta frecuente no encontrada' })
   async remove(@Param('id', new ParseUUIDPipe()) id: string): Promise<void> {
     await this.faqsService.remove(id);
   }

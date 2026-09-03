@@ -66,6 +66,13 @@ export class ProductsController {
     },
   })
   @ApiResponse({ status: 201, description: 'Producto creado', type: Product })
+  @ApiResponse({
+    status: 400,
+    description: 'Datos inválidos o archivo inválido',
+  })
+  @ApiResponse({ status: 401, description: 'No autenticado' })
+  @ApiResponse({ status: 403, description: 'Sin permisos' })
+  @ApiResponse({ status: 409, description: 'Slug de producto ya existente' })
   async create(
     @Body() createProductDto: CreateProductDto,
     @UploadedFiles() files: Express.Multer.File[],
@@ -79,6 +86,13 @@ export class ProductsController {
   @ApiOperation({
     summary: 'Listar todos los productos incluyendo eliminados (ADMIN)',
   })
+  @ApiResponse({
+    status: 200,
+    description: 'Listado paginado de todos los productos',
+    type: Product,
+  })
+  @ApiResponse({ status: 401, description: 'No autenticado' })
+  @ApiResponse({ status: 403, description: 'Sin permisos' })
   async findAllAdmin(
     @Query() query: FindProductsAdminQueryDto,
   ): Promise<PaginatedResponse<Product>> {
@@ -109,6 +123,7 @@ export class ProductsController {
     description: 'Producto encontrado',
     type: ProductPublicResponseDto,
   })
+  @ApiResponse({ status: 404, description: 'Producto no encontrado' })
   async findOneBySlug(
     @Param('slug') slug: string,
   ): Promise<ProductPublicResponseDto> {
@@ -125,6 +140,7 @@ export class ProductsController {
     description: 'Producto encontrado',
     type: ProductPublicResponseDto,
   })
+  @ApiResponse({ status: 404, description: 'Producto no encontrado' })
   async findOne(
     @Param('id', new ParseUUIDPipe()) id: string,
   ): Promise<ProductPublicResponseDto> {
@@ -163,6 +179,14 @@ export class ProductsController {
     description: 'Producto actualizado',
     type: Product,
   })
+  @ApiResponse({
+    status: 400,
+    description: 'Datos inválidos o archivo inválido',
+  })
+  @ApiResponse({ status: 401, description: 'No autenticado' })
+  @ApiResponse({ status: 403, description: 'Sin permisos' })
+  @ApiResponse({ status: 404, description: 'Producto no encontrado' })
+  @ApiResponse({ status: 409, description: 'Slug de producto ya existente' })
   async update(
     @Param('id', new ParseUUIDPipe()) id: string,
     @Body() updateProductDto: UpdateProductDto,
@@ -183,6 +207,9 @@ export class ProductsController {
     description: 'Estado de publicación actualizado',
     type: Product,
   })
+  @ApiResponse({ status: 401, description: 'No autenticado' })
+  @ApiResponse({ status: 403, description: 'Sin permisos' })
+  @ApiResponse({ status: 404, description: 'Producto no encontrado' })
   async publish(
     @Param('id', new ParseUUIDPipe()) id: string,
   ): Promise<Product> {
@@ -194,6 +221,10 @@ export class ProductsController {
   @HttpCode(HttpStatus.NO_CONTENT)
   @ApiOperation({ summary: 'Eliminar (soft delete) un producto (ADMIN)' })
   @ApiParam({ name: 'id', type: 'string', format: 'uuid' })
+  @ApiResponse({ status: 204, description: 'Producto eliminado' })
+  @ApiResponse({ status: 401, description: 'No autenticado' })
+  @ApiResponse({ status: 403, description: 'Sin permisos' })
+  @ApiResponse({ status: 404, description: 'Producto no encontrado' })
   async remove(@Param('id', new ParseUUIDPipe()) id: string): Promise<void> {
     await this.productsService.remove(id);
   }
@@ -207,6 +238,10 @@ export class ProductsController {
     description: 'Producto restaurado',
     type: Product,
   })
+  @ApiResponse({ status: 401, description: 'No autenticado' })
+  @ApiResponse({ status: 403, description: 'Sin permisos' })
+  @ApiResponse({ status: 404, description: 'Producto no encontrado' })
+  @ApiResponse({ status: 409, description: 'El producto no está eliminado' })
   async restore(
     @Param('id', new ParseUUIDPipe()) id: string,
   ): Promise<Product> {

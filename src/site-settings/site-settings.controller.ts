@@ -45,6 +45,13 @@ export class SiteSettingsController {
   @Get()
   @Auth(RoleName.ADMIN)
   @ApiOperation({ summary: 'Listar configuraciones del sitio (ADMIN)' })
+  @ApiResponse({
+    status: 200,
+    description: 'Listado paginado de configuraciones del sitio',
+    type: SiteSetting,
+  })
+  @ApiResponse({ status: 401, description: 'No autenticado' })
+  @ApiResponse({ status: 403, description: 'Sin permisos' })
   async findAll(
     @Query() query: FindSiteSettingsQueryDto,
   ): Promise<PaginatedResponse<SiteSetting>> {
@@ -67,6 +74,17 @@ export class SiteSettingsController {
   @Auth(RoleName.ADMIN)
   @ApiOperation({ summary: 'Obtener una configuracion del sitio (ADMIN)' })
   @ApiParam({ name: 'id', type: 'string', format: 'uuid' })
+  @ApiResponse({
+    status: 200,
+    description: 'Configuracion del sitio encontrada',
+    type: SiteSetting,
+  })
+  @ApiResponse({ status: 401, description: 'No autenticado' })
+  @ApiResponse({ status: 403, description: 'Sin permisos' })
+  @ApiResponse({
+    status: 404,
+    description: 'Configuracion del sitio no encontrada',
+  })
   async findOne(
     @Param('id', new ParseUUIDPipe()) id: string,
   ): Promise<SiteSetting> {
@@ -77,6 +95,21 @@ export class SiteSettingsController {
   @Auth(RoleName.ADMIN)
   @ApiOperation({ summary: 'Editar una configuracion del sitio (ADMIN)' })
   @ApiParam({ name: 'id', type: 'string', format: 'uuid' })
+  @ApiResponse({
+    status: 200,
+    description: 'Configuracion del sitio actualizada',
+    type: SiteSetting,
+  })
+  @ApiResponse({ status: 401, description: 'No autenticado' })
+  @ApiResponse({ status: 403, description: 'Sin permisos' })
+  @ApiResponse({
+    status: 404,
+    description: 'Configuracion del sitio no encontrada',
+  })
+  @ApiResponse({
+    status: 409,
+    description: 'Clave de configuracion ya existente',
+  })
   async update(
     @Param('id', new ParseUUIDPipe()) id: string,
     @Body() updateSiteSettingDto: UpdateSiteSettingDto,
@@ -89,6 +122,16 @@ export class SiteSettingsController {
   @HttpCode(HttpStatus.NO_CONTENT)
   @ApiOperation({ summary: 'Eliminar una configuracion del sitio (ADMIN)' })
   @ApiParam({ name: 'id', type: 'string', format: 'uuid' })
+  @ApiResponse({
+    status: 204,
+    description: 'Configuracion del sitio eliminada',
+  })
+  @ApiResponse({ status: 401, description: 'No autenticado' })
+  @ApiResponse({ status: 403, description: 'Sin permisos' })
+  @ApiResponse({
+    status: 404,
+    description: 'Configuracion del sitio no encontrada',
+  })
   async remove(@Param('id', new ParseUUIDPipe()) id: string): Promise<void> {
     await this.siteSettingsService.remove(id);
   }

@@ -18,7 +18,6 @@ import { CreateUserDto } from './dto/create-user.dto';
 import { UpdateUserDto } from './dto/update-user.dto';
 import { AuditService } from '../audit/audit.service';
 import { AuditAction } from '../audit/entities/audit-action.entity';
-import { SessionsService } from '../sessions/sessions.service';
 
 const USER_PUBLIC_FIELDS: (keyof User)[] = [
   'id',
@@ -53,7 +52,6 @@ export class UsersService {
     @InjectRepository(Role)
     private readonly roleRepository: Repository<Role>,
     private readonly auditService: AuditService,
-    private readonly sessionsService: SessionsService,
   ) {}
 
   async create(dto: CreateUserDto): Promise<User> {
@@ -276,8 +274,6 @@ export class UsersService {
           'No se puede cambiar el rol del último admin activo del sistema',
         );
       }
-
-      // await this.sessionsService.revokeAllByUser(userId);
     }
 
     const previousRoleName = user.role.name;
@@ -337,8 +333,6 @@ export class UsersService {
           'No se puede desactivar al último admin activo del sistema',
         );
       }
-
-      // await this.sessionsService.revokeAllByUser(userId);
     }
 
     const previousStatus = user.status;

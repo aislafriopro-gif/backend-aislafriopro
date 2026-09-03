@@ -157,7 +157,7 @@ export class DashboardService {
         RESOLVED: input.resolvedQuotes,
         REJECTED: input.rejectedQuotes,
       },
-      // ToDo: reemplazar por conteos reales cuando exista WorkOrder.
+      // TODO: integrar conteos reales de WorkOrder en dashboard/stats.
       workOrdersByStatus: {
         PENDING: 0,
         IN_PROGRESS: 0,

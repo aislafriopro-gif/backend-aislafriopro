@@ -74,6 +74,11 @@ export class WorkOrdersController {
     type: WorkOrder,
   })
   @ApiResponse({
+    status: HttpStatus.UNAUTHORIZED,
+    description: 'No autenticado',
+  })
+  @ApiResponse({ status: HttpStatus.FORBIDDEN, description: 'Sin permisos' })
+  @ApiResponse({
     status: HttpStatus.BAD_REQUEST,
     description: 'Datos inválidos.',
   })
@@ -124,6 +129,11 @@ export class WorkOrdersController {
     description: 'Listado paginado de órdenes de trabajo.',
     type: WorkOrder,
   })
+  @ApiResponse({
+    status: HttpStatus.UNAUTHORIZED,
+    description: 'No autenticado',
+  })
+  @ApiResponse({ status: HttpStatus.FORBIDDEN, description: 'Sin permisos' })
   async findAll(
     @Query() query: FindWorkOrdersQueryDto,
   ): Promise<PaginatedResponse<WorkOrder>> {
@@ -143,6 +153,11 @@ export class WorkOrdersController {
     description: 'Estado de la orden actualizado correctamente.',
     type: WorkOrder,
   })
+  @ApiResponse({
+    status: HttpStatus.UNAUTHORIZED,
+    description: 'No autenticado',
+  })
+  @ApiResponse({ status: HttpStatus.FORBIDDEN, description: 'Sin permisos' })
   @ApiResponse({
     status: HttpStatus.BAD_REQUEST,
     description: 'La transición de estado no está permitida.',
@@ -177,6 +192,10 @@ export class WorkOrdersController {
       },
     },
   })
+  @ApiResponse({
+    status: HttpStatus.UNAUTHORIZED,
+    description: 'No autenticado',
+  })
   @ApiResponse({ status: HttpStatus.FORBIDDEN, description: 'Sin permisos' })
   @ApiResponse({
     status: HttpStatus.NOT_FOUND,
@@ -210,6 +229,11 @@ export class WorkOrdersController {
     type: WorkOrder,
   })
   @ApiResponse({
+    status: HttpStatus.UNAUTHORIZED,
+    description: 'No autenticado',
+  })
+  @ApiResponse({ status: HttpStatus.FORBIDDEN, description: 'Sin permisos' })
+  @ApiResponse({
     status: HttpStatus.NOT_FOUND,
     description: 'Orden no encontrada.',
   })
@@ -230,6 +254,11 @@ export class WorkOrdersController {
     description: 'Orden actualizada.',
     type: WorkOrder,
   })
+  @ApiResponse({
+    status: HttpStatus.UNAUTHORIZED,
+    description: 'No autenticado',
+  })
+  @ApiResponse({ status: HttpStatus.FORBIDDEN, description: 'Sin permisos' })
   @ApiResponse({
     status: HttpStatus.BAD_REQUEST,
     description: 'Datos inválidos.',
@@ -301,6 +330,7 @@ export class WorkOrdersController {
       },
     },
   })
+  @ApiResponse({ status: 401, description: 'No autenticado' })
   @ApiResponse({ status: 400, description: 'Archivo inválido o excede tamaño' })
   @ApiResponse({ status: 403, description: 'No es el técnico asignado' })
   @ApiResponse({ status: 404, description: 'OT no encontrada' })
