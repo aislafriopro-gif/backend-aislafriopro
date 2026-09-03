@@ -65,12 +65,12 @@ export class ProductsController {
       required: ['name', 'slug', 'description', 'price'],
     },
   })
-  @ApiResponse({ status: 201, description: 'Producto creado', type: Product })
+  @ApiResponse({ status: 201, description: 'Producto creado', type: ProductPublicResponseDto })
   async create(
     @Body() createProductDto: CreateProductDto,
     @UploadedFiles() files: Express.Multer.File[],
     @CurrentUser('id') userId: string | undefined,
-  ): Promise<Product> {
+  ): Promise<ProductPublicResponseDto> {
     return this.productsService.create(createProductDto, files, userId);
   }
 
@@ -79,6 +79,7 @@ export class ProductsController {
   @ApiOperation({
     summary: 'Listar todos los productos incluyendo eliminados (ADMIN)',
   })
+  @ApiResponse({ status: 200, description: 'Listado de todos los productos', type: Product, isArray: true })
   async findAllAdmin(
     @Query() query: FindProductsAdminQueryDto,
   ): Promise<PaginatedResponse<Product>> {

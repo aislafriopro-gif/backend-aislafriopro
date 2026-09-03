@@ -54,12 +54,14 @@ export class WorkOrdersController {
     status: 200,
     description: 'Listado de OT asignadas al técnico',
     type: WorkOrder,
-    isArray: true,
   })
   @ApiResponse({ status: 401, description: 'No autenticado' })
   @ApiResponse({ status: 403, description: 'Sin permisos' })
-  async findMy(@CurrentUser('userId') userId: string) {
-    return this.workOrdersService.findMyWorkOrders(userId);
+  async findMy(
+    @CurrentUser('userId') userId: string,
+    @Query() query: FindWorkOrdersQueryDto,
+  ) {
+    return this.workOrdersService.findMyWorkOrders(userId, query);
   }
 
   @Post()
@@ -89,6 +91,7 @@ export class WorkOrdersController {
   }
 
   @Get()
+  @ApiResponse({ status: 200, description: 'Listado paginado de órdenes de trabajo', type: WorkOrder, isArray: true })
   @Auth(RoleName.ADMIN)
   @ApiBearerAuth('access-token')
   @ApiOperation({ summary: 'Listar órdenes de trabajo (ADMIN)' })

@@ -43,6 +43,7 @@ export class SiteSettingsController {
   }
 
   @Get()
+  @ApiResponse({ status: 200, description: 'Listado de configuraciones del sitio', type: SiteSetting, isArray: true })
   @Auth(RoleName.ADMIN)
   @ApiOperation({ summary: 'Listar configuraciones del sitio (ADMIN)' })
   async findAll(
@@ -64,6 +65,7 @@ export class SiteSettingsController {
   }
 
   @Get(':id')
+  @ApiResponse({ status: 200, description: 'Configuración encontrada', type: SiteSetting })
   @Auth(RoleName.ADMIN)
   @ApiOperation({ summary: 'Obtener una configuracion del sitio (ADMIN)' })
   @ApiParam({ name: 'id', type: 'string', format: 'uuid' })

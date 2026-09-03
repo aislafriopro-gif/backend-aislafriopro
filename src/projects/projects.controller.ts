@@ -96,6 +96,7 @@ export class ProjectsController {
   @ApiOperation({
     summary: 'Listar todos los proyectos incluyendo eliminados (ADMIN)',
   })
+  @ApiResponse({ status: 200, description: 'Listado de todos los proyectos', type: ProjectPublicResponseDto, isArray: true })
   async findAllAdmin(
     @Query() query: FindProjectsQueryDto,
   ): Promise<PaginatedResponse<ProjectPublicResponseDto>> {
@@ -104,6 +105,7 @@ export class ProjectsController {
 
   @Get()
   @ApiOperation({ summary: 'Listar proyectos activos' })
+  @ApiResponse({ status: 200, description: 'Listado de proyectos activos', type: ProjectPublicResponseDto, isArray: true })
   async findAll(
     @Query() query: FindProjectsQueryDto,
   ): Promise<PaginatedResponse<ProjectPublicResponseDto>> {
@@ -112,6 +114,7 @@ export class ProjectsController {
 
   @Get('by-slug/:slug')
   @ApiOperation({ summary: 'Obtener detalle de un proyecto activo por slug' })
+  @ApiResponse({ status: 200, description: 'Proyecto encontrado', type: ProjectPublicResponseDto })
   @ApiParam({ name: 'slug', type: 'string' })
   async findOneBySlug(
     @Param('slug') slug: string,
@@ -121,6 +124,7 @@ export class ProjectsController {
 
   @Get(':id')
   @ApiOperation({ summary: 'Obtener detalle de un proyecto activo' })
+  @ApiResponse({ status: 200, description: 'Proyecto encontrado', type: ProjectPublicResponseDto })
   @ApiParam({ name: 'id', type: 'string', format: 'uuid' })
   async findOne(
     @Param('id', new ParseUUIDPipe()) id: string,

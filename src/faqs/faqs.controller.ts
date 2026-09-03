@@ -41,6 +41,7 @@ export class FaqsController {
   @Get('all')
   @Auth(RoleName.ADMIN)
   @ApiOperation({ summary: 'Listar todas las preguntas frecuentes (ADMIN)' })
+  @ApiResponse({ status: 200, description: 'Listado de preguntas frecuentes', type: Faq, isArray: true })
   async findAllAdmin(
     @Query() query: FindFaqsQueryDto,
   ): Promise<PaginatedResponse<Faq>> {
@@ -49,6 +50,7 @@ export class FaqsController {
 
   @Get()
   @ApiOperation({ summary: 'Listar preguntas frecuentes activas' })
+  @ApiResponse({ status: 200, description: 'Listado de preguntas frecuentes activas', type: Faq, isArray: true })
   async findAll(
     @Query() query: FindFaqsQueryDto,
   ): Promise<PaginatedResponse<Faq>> {
@@ -57,6 +59,7 @@ export class FaqsController {
 
   @Get(':id')
   @ApiOperation({ summary: 'Obtener detalle de una pregunta frecuente activa' })
+  @ApiResponse({ status: 200, description: 'Pregunta frecuente encontrada', type: Faq })
   @ApiParam({ name: 'id', type: 'string', format: 'uuid' })
   async findOne(@Param('id', new ParseUUIDPipe()) id: string): Promise<Faq> {
     return this.faqsService.findOne(id);
