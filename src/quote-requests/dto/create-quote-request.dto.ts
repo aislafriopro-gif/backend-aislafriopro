@@ -78,13 +78,13 @@ export class CreateQuoteRequestDto {
   @ApiPropertyOptional({
     description: 'Materiales, observaciones técnicas o detalle adicional solicitado por el cliente',
     example: 'Necesitamos aislamiento acústico y una estructura metálica reforzada.',
-    maxLength: 1000,
+    maxLength: 2000,
     nullable: true,
   })
   @IsOptional()
   @IsString({ message: 'Los materiales deben ser una cadena de texto.' })
-  @MaxLength(1000, {
-    message: 'Los materiales no pueden superar los 1000 caracteres.',
+  @MaxLength(2000, {
+    message: 'Los materiales no pueden superar los 2000 caracteres.',
   })
   materials?: string | null;
 
@@ -92,15 +92,15 @@ export class CreateQuoteRequestDto {
     description: 'Mensaje o comentario del cliente sobre la solicitud',
     example: 'Necesitamos una cotización para la instalación de un aire acondicionado.',
     minLength: 10,
-    maxLength: 1000,
+    maxLength: 2000,
   })
   @IsString({ message: 'El mensaje debe ser una cadena de texto.' })
   @IsNotEmpty({ message: 'El mensaje es obligatorio.' })
   @MinLength(10, {
     message: 'El mensaje debe tener al menos 10 caracteres.',
   })
-  @MaxLength(1000, {
-    message: 'El mensaje no puede superar los 1000 caracteres.',
+  @MaxLength(2000, {
+    message: 'El mensaje no puede superar los 2000 caracteres.',
   })
   message!: string;
 }
