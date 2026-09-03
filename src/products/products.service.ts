@@ -37,7 +37,7 @@ export class ProductsService {
     createProductDto: CreateProductDto,
     files?: Express.Multer.File[],
     uploadedById?: string | null,
-  ): Promise<Product> {
+  ): Promise<ProductPublicResponseDto> {
     await this.ensureSlugAvailable(createProductDto.slug);
 
     const productData: Partial<Product> = {
@@ -62,10 +62,12 @@ export class ProductsService {
       );
     }
 
-    return this.productRepository.findOneOrFail({
+    const savedProductWithImages = await this.productRepository.findOneOrFail({
       where: { id: savedProduct.id },
       relations: ['images', 'images.media'],
     });
+
+    return this.mapToPublicResponse(savedProductWithImages);
   }
 
   async findAll(
