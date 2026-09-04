@@ -20,6 +20,7 @@ import { FindFaqsQueryDto } from './dto/find-faqs-query.dto';
 import { UpdateFaqDto } from './dto/update-faq.dto';
 import { Faq } from './entities/faq.entity';
 import { FaqsService } from './faqs.service';
+import { Public } from '../common/decorators/public.decorator';
 
 @ApiTags('Faqs')
 @Controller('faqs')
@@ -54,6 +55,7 @@ export class FaqsController {
     return this.faqsService.findAllAdmin(query);
   }
 
+  @Public()
   @Get()
   @ApiOperation({ summary: 'Listar preguntas frecuentes activas' })
   @ApiResponse({
@@ -67,8 +69,10 @@ export class FaqsController {
     return this.faqsService.findAll(query);
   }
 
+  @Public()
   @Get(':id')
   @ApiOperation({ summary: 'Obtener detalle de una pregunta frecuente activa' })
+  @ApiResponse({ status: 200, description: 'Pregunta frecuente encontrada', type: Faq })
   @ApiParam({ name: 'id', type: 'string', format: 'uuid' })
   @ApiResponse({
     status: 200,

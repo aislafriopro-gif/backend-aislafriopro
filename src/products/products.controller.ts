@@ -34,6 +34,7 @@ import { ProductPublicResponseDto } from './dto/product-public-response.dto';
 import { UpdateProductDto } from './dto/update-product.dto';
 import { Product } from './entities/product.entity';
 import { ProductsService } from './products.service';
+import { Public } from 'src/common/decorators/public.decorator';
 
 @ApiTags('Products')
 @Controller('products')
@@ -77,7 +78,7 @@ export class ProductsController {
     @Body() createProductDto: CreateProductDto,
     @UploadedFiles() files: Express.Multer.File[],
     @CurrentUser('id') userId: string | undefined,
-  ): Promise<Product> {
+  ): Promise<ProductPublicResponseDto> {
     return this.productsService.create(createProductDto, files, userId);
   }
 
@@ -99,6 +100,7 @@ export class ProductsController {
     return this.productsService.findAllAdmin(query);
   }
 
+  @Public()
   @Get()
   @ApiOperation({ summary: 'Listar productos publicados en la tienda' })
   @ApiResponse({
@@ -113,6 +115,7 @@ export class ProductsController {
     return this.productsService.findAll(query);
   }
 
+  @Public()
   @Get('by-slug/:slug')
   @ApiOperation({
     summary: 'Obtener detalle de un producto publicado por slug',
@@ -130,6 +133,7 @@ export class ProductsController {
     return this.productsService.findOneBySlug(slug);
   }
 
+  @Public()
   @Get(':id')
   @ApiOperation({
     summary: 'Obtener detalle de un producto publicado',

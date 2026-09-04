@@ -113,6 +113,7 @@ export class UsersController {
   }
 
   @Patch(':id')
+  @Auth()
   @ApiOperation({
     summary: 'Actualizar datos de un usuario (propio usuario o ADMIN)',
   })

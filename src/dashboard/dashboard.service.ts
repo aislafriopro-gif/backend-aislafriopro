@@ -9,6 +9,10 @@ import { Project } from '../projects/entities/project.entity';
 import { Product } from '../products/entities/product.entity';
 import { DashboardStatsResponseDto } from './dto/dashboard-stats-response.dto';
 import { RoleName } from '../roles/entities/roles.entity';
+import {
+  WorkOrder,
+  WorkOrderStatus,
+} from '../work-orders/entities/work-order.entity';
 
 interface DashboardRequestUser {
   userId: string;
@@ -25,6 +29,8 @@ export class DashboardService {
     private readonly projectRepository: Repository<Project>,
     @InjectRepository(Product)
     private readonly productRepository: Repository<Product>,
+    @InjectRepository(WorkOrder)
+    private readonly workOrderRepository: Repository<WorkOrder>,
   ) {}
 
   async getStats(
@@ -50,6 +56,10 @@ export class DashboardService {
       rejectedQuotes,
       totalProjects,
       totalProducts,
+      totalWorkOrders,
+      pendingWorkOrders,
+      inProgressWorkOrders,
+      completedWorkOrders,
     ] = await Promise.all([
       this.quoteRequestRepository.count(),
       this.quoteRequestRepository.count({
@@ -70,17 +80,30 @@ export class DashboardService {
       this.productRepository.count({
         where: { deletedAt: IsNull() },
       }),
+      this.workOrderRepository.count(),
+      this.workOrderRepository.count({
+        where: { status: WorkOrderStatus.PENDING },
+      }),
+      this.workOrderRepository.count({
+        where: { status: WorkOrderStatus.IN_PROGRESS },
+      }),
+      this.workOrderRepository.count({
+        where: { status: WorkOrderStatus.COMPLETED },
+      }),
     ]);
 
     return this.buildResponse({
       totalQuotes,
-      totalWorkOrders: 0,
+      totalWorkOrders,
       totalProjects,
       totalProducts,
       newQuotes,
       inProgressQuotes,
       resolvedQuotes,
       rejectedQuotes,
+      pendingWorkOrders,
+      inProgressWorkOrders,
+      completedWorkOrders,
     });
   }
 
@@ -120,6 +143,9 @@ export class DashboardService {
       inProgressQuotes,
       resolvedQuotes,
       rejectedQuotes,
+      pendingWorkOrders: 0,
+      inProgressWorkOrders: 0,
+      completedWorkOrders: 0,
     });
   }
 
@@ -133,6 +159,9 @@ export class DashboardService {
       inProgressQuotes: 0,
       resolvedQuotes: 0,
       rejectedQuotes: 0,
+      pendingWorkOrders: 0,
+      inProgressWorkOrders: 0,
+      completedWorkOrders: 0,
     });
   }
 
@@ -145,6 +174,9 @@ export class DashboardService {
     inProgressQuotes: number;
     resolvedQuotes: number;
     rejectedQuotes: number;
+    pendingWorkOrders: number;
+    inProgressWorkOrders: number;
+    completedWorkOrders: number;
   }): DashboardStatsResponseDto {
     return {
       totalQuotes: input.totalQuotes,
@@ -159,9 +191,9 @@ export class DashboardService {
       },
       // TODO: integrar conteos reales de WorkOrder en dashboard/stats.
       workOrdersByStatus: {
-        PENDING: 0,
-        IN_PROGRESS: 0,
-        COMPLETED: 0,
+        PENDING: input.pendingWorkOrders,
+        IN_PROGRESS: input.inProgressWorkOrders,
+        COMPLETED: input.completedWorkOrders,
       },
     };
   }

@@ -33,6 +33,7 @@ import { ProjectPublicResponseDto } from './dto/project-public-response.dto';
 import { UpdateProjectDto } from './dto/update-project.dto';
 import { Project } from './entities/project.entity';
 import { ProjectsService } from './projects.service';
+import { Public } from 'src/common/decorators/public.decorator';
 
 @ApiTags('Projects')
 @Controller('projects')
@@ -135,6 +136,7 @@ export class ProjectsController {
     return this.projectsService.findAllAdmin(query);
   }
 
+  @Public()
   @Get()
   @ApiOperation({ summary: 'Listar proyectos activos' })
   @ApiResponse({
@@ -148,8 +150,10 @@ export class ProjectsController {
     return this.projectsService.findAll(query);
   }
 
+  @Public()
   @Get('by-slug/:slug')
   @ApiOperation({ summary: 'Obtener detalle de un proyecto activo por slug' })
+  @ApiResponse({ status: 200, description: 'Proyecto encontrado', type: ProjectPublicResponseDto })
   @ApiParam({ name: 'slug', type: 'string' })
   @ApiResponse({
     status: 200,
@@ -163,8 +167,10 @@ export class ProjectsController {
     return this.projectsService.findOneBySlug(slug);
   }
 
+  @Public()
   @Get(':id')
   @ApiOperation({ summary: 'Obtener detalle de un proyecto activo' })
+  @ApiResponse({ status: 200, description: 'Proyecto encontrado', type: ProjectPublicResponseDto })
   @ApiParam({ name: 'id', type: 'string', format: 'uuid' })
   @ApiResponse({
     status: 200,

@@ -58,12 +58,19 @@ export class WorkOrdersService {
     private readonly auditService: AuditService,
   ) {}
 
-  async findMyWorkOrders(userId: string): Promise<WorkOrder[]> {
-    return await this.workOrderRepository.find({
+  async findMyWorkOrders(
+    userId: string,
+    query: FindWorkOrdersQueryDto,
+  ): Promise<PaginatedResponse<WorkOrder>> {
+    const [data, total] = await this.workOrderRepository.findAndCount({
       where: { technicianId: userId },
       relations: { client: true, quoteRequest: true, images: true },
       order: { createdAt: 'DESC' },
+      skip: query.offset,
+      take: query.limit,
     });
+
+    return buildPaginatedResponse(data, total, query.page, query.limit);
   }
 
   async create(

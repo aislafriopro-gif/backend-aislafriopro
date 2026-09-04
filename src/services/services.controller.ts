@@ -26,6 +26,7 @@ import { UpdateServiceDto } from './dto/update-service.dto';
 import { ReorderServicesDto } from './dto/reorder-services.dto';
 import { ServiceResponseDto } from './dto/service-response.dto';
 import { FindServicesQueryDto } from './dto/find-services-query.dto';
+import { Public } from 'src/common/decorators/public.decorator';
 
 interface RequestUser {
   userId: string;
@@ -79,6 +80,7 @@ export class ServicesController {
     return this.servicesService.findAllAdmin(query);
   }
 
+  @Public()
   @Get()
   @ApiOperation({ summary: 'Listar servicios activos' })
   @ApiResponse({
@@ -98,6 +100,7 @@ export class ServicesController {
     };
   }
 
+  @Public()
   @Get(':id')
   @ApiOperation({ summary: 'Obtener detalle de un servicio activo' })
   @ApiParam({ name: 'id', type: 'string', format: 'uuid' })

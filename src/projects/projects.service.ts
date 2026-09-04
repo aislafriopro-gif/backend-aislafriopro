@@ -16,6 +16,7 @@ import {
 } from '../media/cloudinary.service';
 import { Media } from '../media/entities/media.entity';
 import { Service } from '../services/entities/service.entity';
+import { Client } from '../clients/entities/client.entity';
 import { User, UserStatus } from '../users/entities/user.entity';
 import 'multer';
 import { CreateProjectDto } from './dto/create-project.dto';
@@ -27,7 +28,6 @@ import {
   ProjectImage,
   ProjectImageType,
 } from './media/entities/project-image.entity';
-import { RoleName } from '../roles/entities/roles.entity';
 
 @Injectable()
 export class ProjectsService {
@@ -38,6 +38,8 @@ export class ProjectsService {
     private readonly serviceRepository: Repository<Service>,
     @InjectRepository(User)
     private readonly userRepository: Repository<User>,
+    @InjectRepository(Client)
+    private readonly clientRepository: Repository<Client>,
     @InjectRepository(ProjectImage)
     private readonly projectImageRepository: Repository<ProjectImage>,
     @InjectRepository(Media)
@@ -471,14 +473,17 @@ export class ProjectsService {
   }
 
   private async validateClient(clientId: string): Promise<void> {
-    const user = await this.userRepository.findOne({
+    const client = await this.clientRepository.findOne({
       where: { id: clientId },
       withDeleted: true,
+      relations: ['user'],
     });
 
-    if (!user) {
+    if (!client) {
       throw new NotFoundException(`Client with id "${clientId}" not found`);
     }
+
+    const user = client.user;
 
     if (user.deletedAt !== null && user.deletedAt !== undefined) {
       throw new BadRequestException(
@@ -489,12 +494,6 @@ export class ProjectsService {
     if (user.status !== UserStatus.ACTIVE) {
       throw new BadRequestException(
         `Client with id "${clientId}" is not active (status: ${user.status})`,
-      );
-    }
-
-    if (user.role?.name !== RoleName.CLIENT) {
-      throw new BadRequestException(
-        `User with id "${clientId}" is not a client (role: ${user.role?.name})`,
       );
     }
   }
