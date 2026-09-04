@@ -189,6 +189,7 @@ export class DashboardService {
         RESOLVED: input.resolvedQuotes,
         REJECTED: input.rejectedQuotes,
       },
+      // TODO: integrar conteos reales de WorkOrder en dashboard/stats.
       workOrdersByStatus: {
         PENDING: input.pendingWorkOrders,
         IN_PROGRESS: input.inProgressWorkOrders,

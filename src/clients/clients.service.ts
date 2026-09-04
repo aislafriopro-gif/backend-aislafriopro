@@ -89,7 +89,7 @@ export class ClientsService {
       quoteRequests: quoteRequests.map((quoteRequest) =>
         this.mapQuoteRequest(quoteRequest),
       ),
-      // ToDo: completar cuando exista la entidad WorkOrder con FK a Client.
+      // TODO: integrar WorkOrder en la respuesta cuando se defina el alcance de /clients/me.
       workOrders: [],
     };
   }

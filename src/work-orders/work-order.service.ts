@@ -28,7 +28,10 @@ import { WorkOrderImage } from './media/entities/work-order-image.entity';
 
 const ALLOWED_STATUS_TRANSITIONS: Record<WorkOrderStatus, WorkOrderStatus[]> = {
   [WorkOrderStatus.PENDING]: [WorkOrderStatus.IN_PROGRESS],
-  [WorkOrderStatus.IN_PROGRESS]: [WorkOrderStatus.COMPLETED, WorkOrderStatus.PENDING],
+  [WorkOrderStatus.IN_PROGRESS]: [
+    WorkOrderStatus.COMPLETED,
+    WorkOrderStatus.PENDING,
+  ],
   [WorkOrderStatus.COMPLETED]: [WorkOrderStatus.IN_PROGRESS],
 };
 
@@ -392,7 +395,7 @@ export class WorkOrdersService {
       ? [...workOrder.materials].sort((a, b) => a.name.localeCompare(b.name))
       : [];
 
-    return new Promise<Buffer>( async (resolve, reject) => {
+    return new Promise<Buffer>(async (resolve, reject) => {
       const doc = new PDFDocument({ margin: 50, size: 'A4' });
       const chunks: Buffer[] = [];
 
@@ -506,57 +509,55 @@ export class WorkOrdersService {
       doc.moveDown(1.5);
 
       // FOTOS
-      // ... dentro de generateWorkOrderPdf
 
-if (workOrder.images && workOrder.images.length > 0) {
-  if (doc.y > 650) {
-    doc.addPage();
-  }
+      if (workOrder.images && workOrder.images.length > 0) {
+        if (doc.y > 650) {
+          doc.addPage();
+        }
 
-  doc.fontSize(16).font('Helvetica-Bold').text('FOTOS DEL TRABAJO');
-  doc.moveTo(50, doc.y).lineTo(550, doc.y).stroke();
-  doc.moveDown(1);
+        doc.fontSize(16).font('Helvetica-Bold').text('FOTOS DEL TRABAJO');
+        doc.moveTo(50, doc.y).lineTo(550, doc.y).stroke();
+        doc.moveDown(1);
 
-  // Recorremos las imágenes de forma secuencial con await
-  for (let i = 0; i < workOrder.images.length; i++) {
-    const image = workOrder.images[i];
+        for (let i = 0; i < workOrder.images.length; i++) {
+          const image = workOrder.images[i];
 
-    if (doc.y > 650) {
-      doc.addPage();
-    }
+          if (doc.y > 650) {
+            doc.addPage();
+          }
 
-    try {
-      // Esperamos la respuesta de la descarga
-      const response = await fetch(image.url);
-      if (!response.ok) {
-        throw new Error(`Error al descargar imagen: ${image.url} (${response.status})`);
+          try {
+            const response = await fetch(image.url);
+            if (!response.ok) {
+              throw new Error(
+                `Error al descargar imagen: ${image.url} (${response.status})`,
+              );
+            }
+            const arrayBuffer = await response.arrayBuffer();
+            const imageBuffer = Buffer.from(arrayBuffer);
+
+            doc.image(imageBuffer, {
+              fit: [400, 400],
+              align: 'center',
+            });
+            doc.moveDown(0.5);
+            doc
+              .fontSize(9)
+              .font('Helvetica')
+              .text(`Foto ${i + 1} de ${workOrder.images.length}`, {
+                align: 'center',
+              });
+            doc.moveDown(1);
+          } catch (error) {
+            console.error(`Error al cargar la foto ${i + 1}:`, error);
+            doc
+              .fontSize(10)
+              .font('Helvetica')
+              .text(`Error al cargar foto ${i + 1}`, { align: 'center' });
+            doc.moveDown(1);
+          }
+        }
       }
-      const arrayBuffer = await response.arrayBuffer();
-      const imageBuffer = Buffer.from(arrayBuffer);
-
-      // Añadimos la imagen al PDF
-      doc.image(imageBuffer, {
-        fit: [400, 400],
-        align: 'center',
-      });
-      doc.moveDown(0.5);
-      doc
-        .fontSize(9)
-        .font('Helvetica')
-        .text(`Foto ${i + 1} de ${workOrder.images.length}`, {
-          align: 'center',
-        });
-      doc.moveDown(1);
-    } catch (error) {
-      console.error(`Error al cargar la foto ${i + 1}:`, error);
-      doc
-        .fontSize(10)
-        .font('Helvetica')
-        .text(`Error al cargar foto ${i + 1}`, { align: 'center' });
-      doc.moveDown(1);
-    }
-  }
-}
       doc.end();
     });
   }

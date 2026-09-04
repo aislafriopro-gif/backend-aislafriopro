@@ -38,11 +38,11 @@ export class ClientMeResponseDto {
   @ApiProperty({ type: [ClientQuoteRequestResponseDto] })
   quoteRequests!: ClientQuoteRequestResponseDto[];
 
-  // ToDo: completar cuando exista la entidad WorkOrder con FK a Client.
+  // TODO: integrar WorkOrder en la respuesta cuando se defina el alcance de /clients/me.
   @ApiProperty({
     type: [Object],
     description:
-      'Órdenes de trabajo del cliente. Actualmente retorna vacío hasta que exista el módulo de OTs.',
+      'Órdenes de trabajo del cliente. Actualmente retorna vacío hasta integrar WorkOrder en este endpoint.',
   })
   workOrders!: unknown[];
 }

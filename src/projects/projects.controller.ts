@@ -63,7 +63,7 @@ export class ProjectsController {
         description: { type: 'string' },
         location: { type: 'string', nullable: true },
         completionDate: { type: 'string', format: 'date' },
-        clientId: { type: 'string', format: 'uuid'},
+        clientId: { type: 'string', format: 'uuid' },
         clientDisplayName: { type: 'string', nullable: true },
         serviceIds: {
           type: 'string',
@@ -71,14 +71,40 @@ export class ProjectsController {
             'JSON array serializado con los UUIDs de servicios. Ej: ["uuid1","uuid2"]',
           nullable: true,
         },
-        coverFile: { type: 'string', format: 'binary', nullable: true, default: null },
-        beforeFile: { type: 'string', format: 'binary', nullable: true, default: null },
-        afterFile: { type: 'string', format: 'binary', nullable: true, default: null },
+        coverFile: {
+          type: 'string',
+          format: 'binary',
+          nullable: true,
+          default: null,
+        },
+        beforeFile: {
+          type: 'string',
+          format: 'binary',
+          nullable: true,
+          default: null,
+        },
+        afterFile: {
+          type: 'string',
+          format: 'binary',
+          nullable: true,
+          default: null,
+        },
       },
       required: ['title', 'slug', 'description', 'clientId'],
     },
   })
   @ApiResponse({ status: 201, description: 'Proyecto creado', type: Project })
+  @ApiResponse({
+    status: 400,
+    description: 'Datos inválidos o archivo inválido',
+  })
+  @ApiResponse({ status: 401, description: 'No autenticado' })
+  @ApiResponse({ status: 403, description: 'Sin permisos' })
+  @ApiResponse({
+    status: 404,
+    description: 'Cliente o servicio relacionado no encontrado',
+  })
+  @ApiResponse({ status: 409, description: 'Slug de proyecto ya existente' })
   async create(
     @Body() createProjectDto: CreateProjectDto,
     @UploadedFiles()
@@ -97,7 +123,13 @@ export class ProjectsController {
   @ApiOperation({
     summary: 'Listar todos los proyectos incluyendo eliminados (ADMIN)',
   })
-  @ApiResponse({ status: 200, description: 'Listado de todos los proyectos', type: ProjectPublicResponseDto, isArray: true })
+  @ApiResponse({
+    status: 200,
+    description: 'Listado paginado de todos los proyectos',
+    type: ProjectPublicResponseDto,
+  })
+  @ApiResponse({ status: 401, description: 'No autenticado' })
+  @ApiResponse({ status: 403, description: 'Sin permisos' })
   async findAllAdmin(
     @Query() query: FindProjectsQueryDto,
   ): Promise<PaginatedResponse<ProjectPublicResponseDto>> {
@@ -107,7 +139,11 @@ export class ProjectsController {
   @Public()
   @Get()
   @ApiOperation({ summary: 'Listar proyectos activos' })
-  @ApiResponse({ status: 200, description: 'Listado de proyectos activos', type: ProjectPublicResponseDto, isArray: true })
+  @ApiResponse({
+    status: 200,
+    description: 'Listado paginado de proyectos activos',
+    type: ProjectPublicResponseDto,
+  })
   async findAll(
     @Query() query: FindProjectsQueryDto,
   ): Promise<PaginatedResponse<ProjectPublicResponseDto>> {
@@ -119,6 +155,12 @@ export class ProjectsController {
   @ApiOperation({ summary: 'Obtener detalle de un proyecto activo por slug' })
   @ApiResponse({ status: 200, description: 'Proyecto encontrado', type: ProjectPublicResponseDto })
   @ApiParam({ name: 'slug', type: 'string' })
+  @ApiResponse({
+    status: 200,
+    description: 'Proyecto encontrado',
+    type: ProjectPublicResponseDto,
+  })
+  @ApiResponse({ status: 404, description: 'Proyecto no encontrado' })
   async findOneBySlug(
     @Param('slug') slug: string,
   ): Promise<ProjectPublicResponseDto> {
@@ -130,6 +172,12 @@ export class ProjectsController {
   @ApiOperation({ summary: 'Obtener detalle de un proyecto activo' })
   @ApiResponse({ status: 200, description: 'Proyecto encontrado', type: ProjectPublicResponseDto })
   @ApiParam({ name: 'id', type: 'string', format: 'uuid' })
+  @ApiResponse({
+    status: 200,
+    description: 'Proyecto encontrado',
+    type: ProjectPublicResponseDto,
+  })
+  @ApiResponse({ status: 404, description: 'Proyecto no encontrado' })
   async findOne(
     @Param('id', new ParseUUIDPipe()) id: string,
   ): Promise<ProjectPublicResponseDto> {
@@ -168,13 +216,44 @@ export class ProjectsController {
             'JSON array serializado con los UUIDs de servicios. Ej: ["uuid1","uuid2"]',
           nullable: true,
         },
-        coverFile: { type: 'string', format: 'binary', nullable: true, default: null },
-        beforeFile: { type: 'string', format: 'binary', nullable: true, default: null },
-        afterFile: { type: 'string', format: 'binary', nullable: true, default: null },
+        coverFile: {
+          type: 'string',
+          format: 'binary',
+          nullable: true,
+          default: null,
+        },
+        beforeFile: {
+          type: 'string',
+          format: 'binary',
+          nullable: true,
+          default: null,
+        },
+        afterFile: {
+          type: 'string',
+          format: 'binary',
+          nullable: true,
+          default: null,
+        },
       },
       required: [],
     },
   })
+  @ApiResponse({
+    status: 200,
+    description: 'Proyecto actualizado',
+    type: Project,
+  })
+  @ApiResponse({
+    status: 400,
+    description: 'Datos inválidos o archivo inválido',
+  })
+  @ApiResponse({ status: 401, description: 'No autenticado' })
+  @ApiResponse({ status: 403, description: 'Sin permisos' })
+  @ApiResponse({
+    status: 404,
+    description: 'Proyecto, cliente o servicio relacionado no encontrado',
+  })
+  @ApiResponse({ status: 409, description: 'Slug de proyecto ya existente' })
   async update(
     @Param('id', new ParseUUIDPipe()) id: string,
     @Body() updateProjectDto: UpdateProjectDto,
@@ -194,6 +273,10 @@ export class ProjectsController {
   @HttpCode(HttpStatus.NO_CONTENT)
   @ApiOperation({ summary: 'Eliminar (soft delete) un proyecto (ADMIN)' })
   @ApiParam({ name: 'id', type: 'string', format: 'uuid' })
+  @ApiResponse({ status: 204, description: 'Proyecto eliminado' })
+  @ApiResponse({ status: 401, description: 'No autenticado' })
+  @ApiResponse({ status: 403, description: 'Sin permisos' })
+  @ApiResponse({ status: 404, description: 'Proyecto no encontrado' })
   async remove(@Param('id', new ParseUUIDPipe()) id: string): Promise<void> {
     await this.projectsService.remove(id);
   }
@@ -202,6 +285,18 @@ export class ProjectsController {
   @Auth(RoleName.ADMIN)
   @ApiOperation({ summary: 'Restaurar un proyecto eliminado (ADMIN)' })
   @ApiParam({ name: 'id', type: 'string', format: 'uuid' })
+  @ApiResponse({
+    status: 200,
+    description: 'Proyecto restaurado',
+    type: ProjectPublicResponseDto,
+  })
+  @ApiResponse({ status: 401, description: 'No autenticado' })
+  @ApiResponse({ status: 403, description: 'Sin permisos' })
+  @ApiResponse({ status: 404, description: 'Proyecto no encontrado' })
+  @ApiResponse({
+    status: 409,
+    description: 'El proyecto no está eliminado o el slug ya existe',
+  })
   async restore(
     @Param('id', new ParseUUIDPipe()) id: string,
   ): Promise<ProjectPublicResponseDto> {

@@ -97,7 +97,6 @@ export class UsersController {
   @ApiResponse({ status: 200, description: 'Perfil del usuario', type: User })
   @ApiResponse({ status: 401, description: 'No autenticado' })
   async findMe(@CurrentUser() requestUser: RequestUser): Promise<User> {
-    console.log('ghola');
     return this.usersService.findMe(requestUser.userId);
   }
 
@@ -106,6 +105,8 @@ export class UsersController {
   @ApiOperation({ summary: 'Obtener un usuario por ID (ADMIN)' })
   @ApiParam({ name: 'id', type: 'string', format: 'uuid' })
   @ApiResponse({ status: 200, description: 'Usuario encontrado', type: User })
+  @ApiResponse({ status: 401, description: 'No autenticado' })
+  @ApiResponse({ status: 403, description: 'Sin permisos' })
   @ApiResponse({ status: 404, description: 'Usuario no encontrado' })
   async findOne(@Param('id', new ParseUUIDPipe()) id: string): Promise<User> {
     return this.usersService.findOne(id);
@@ -142,6 +143,8 @@ export class UsersController {
   @ApiOperation({ summary: 'Soft delete de un usuario (ADMIN)' })
   @ApiParam({ name: 'id', type: 'string', format: 'uuid' })
   @ApiResponse({ status: 204, description: 'Usuario eliminado (soft delete)' })
+  @ApiResponse({ status: 401, description: 'No autenticado' })
+  @ApiResponse({ status: 403, description: 'Sin permisos' })
   @ApiResponse({ status: 404, description: 'Usuario no encontrado' })
   async remove(@Param('id', new ParseUUIDPipe()) id: string): Promise<void> {
     await this.usersService.remove(id);
@@ -152,6 +155,8 @@ export class UsersController {
   @ApiOperation({ summary: 'Restaurar un usuario soft-deleted (ADMIN)' })
   @ApiParam({ name: 'id', type: 'string', format: 'uuid' })
   @ApiResponse({ status: 200, description: 'Usuario restaurado', type: User })
+  @ApiResponse({ status: 401, description: 'No autenticado' })
+  @ApiResponse({ status: 403, description: 'Sin permisos' })
   @ApiResponse({ status: 404, description: 'Usuario no encontrado' })
   @ApiResponse({ status: 409, description: 'El usuario no está eliminado' })
   async restore(@Param('id', new ParseUUIDPipe()) id: string): Promise<User> {
@@ -163,7 +168,7 @@ export class UsersController {
   @ApiOperation({
     summary: 'Asignar un rol a un usuario (ADMIN)',
     description:
-      'Solo administradores pueden asignar roles. Un admin no puede reasignarse su propio rol. No se puede dejar el sistema sin al menos un admin activo. Si se degrada a un admin, se revocan todas sus sesiones activas.',
+      'Solo administradores pueden asignar roles. Un admin no puede reasignarse su propio rol. No se puede dejar el sistema sin al menos un admin activo.',
   })
   @ApiParam({ name: 'id', type: 'string', format: 'uuid' })
   @ApiResponse({
@@ -171,6 +176,7 @@ export class UsersController {
     description: 'Usuario con rol actualizado',
     type: User,
   })
+  @ApiResponse({ status: 401, description: 'No autenticado' })
   @ApiResponse({
     status: 403,
     description: 'No es admin o intenta reasignarse su propio rol',
@@ -199,7 +205,7 @@ export class UsersController {
   @ApiOperation({
     summary: 'Cambiar el estado de un usuario (ADMIN)',
     description:
-      'Solo administradores pueden cambiar el estado de otros usuarios. Un admin no puede cambiar su propio estado. No se puede desactivar al último admin activo del sistema. Si se desactiva o suspende a un admin, se revocan todas sus sesiones activas.',
+      'Solo administradores pueden cambiar el estado de otros usuarios. Un admin no puede cambiar su propio estado. No se puede desactivar al último admin activo del sistema.',
   })
   @ApiParam({ name: 'id', type: 'string', format: 'uuid' })
   @ApiResponse({
@@ -207,6 +213,7 @@ export class UsersController {
     description: 'Estado del usuario actualizado',
     type: User,
   })
+  @ApiResponse({ status: 401, description: 'No autenticado' })
   @ApiResponse({
     status: 403,
     description: 'No es admin o intenta cambiar su propio estado',

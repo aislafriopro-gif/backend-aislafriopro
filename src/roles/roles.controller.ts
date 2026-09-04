@@ -29,6 +29,8 @@ export class RolesController {
   @ApiOperation({ summary: 'Soft delete de un rol (ADMIN)' })
   @ApiParam({ name: 'id', type: 'string', format: 'uuid' })
   @ApiResponse({ status: 204, description: 'Rol eliminado (soft delete)' })
+  @ApiResponse({ status: 401, description: 'No autenticado' })
+  @ApiResponse({ status: 403, description: 'Sin permisos' })
   @ApiResponse({ status: 404, description: 'Rol no encontrado' })
   async remove(@Param('id', new ParseUUIDPipe()) id: string): Promise<void> {
     await this.rolesService.remove(id);
@@ -39,6 +41,8 @@ export class RolesController {
   @ApiOperation({ summary: 'Restaurar un rol soft-deleted (ADMIN)' })
   @ApiParam({ name: 'id', type: 'string', format: 'uuid' })
   @ApiResponse({ status: 200, description: 'Rol restaurado', type: Role })
+  @ApiResponse({ status: 401, description: 'No autenticado' })
+  @ApiResponse({ status: 403, description: 'Sin permisos' })
   @ApiResponse({ status: 404, description: 'Rol no encontrado' })
   @ApiResponse({ status: 409, description: 'El rol no está eliminado' })
   async restore(@Param('id', new ParseUUIDPipe()) id: string): Promise<Role> {
@@ -51,6 +55,8 @@ export class RolesController {
     summary: 'Listar todos los roles (incluye soft-deleted) (ADMIN)',
   })
   @ApiResponse({ status: 200, description: 'Listado paginado' })
+  @ApiResponse({ status: 401, description: 'No autenticado' })
+  @ApiResponse({ status: 403, description: 'Sin permisos' })
   async findAllWithDeleted(
     @Query() pagination: PaginationParamsDto,
   ): Promise<PaginatedResponse<Role>> {
@@ -61,6 +67,8 @@ export class RolesController {
   @Auth(RoleName.ADMIN)
   @ApiOperation({ summary: 'Listar todos los roles activos (ADMIN)' })
   @ApiResponse({ status: 200, description: 'Listado de roles', type: [Role] })
+  @ApiResponse({ status: 401, description: 'No autenticado' })
+  @ApiResponse({ status: 403, description: 'Sin permisos' })
   async findAll(): Promise<Role[]> {
     return this.rolesService.findAll();
   }
@@ -70,6 +78,8 @@ export class RolesController {
   @ApiOperation({ summary: 'Obtener un rol por ID (ADMIN)' })
   @ApiParam({ name: 'id', type: 'string', format: 'uuid' })
   @ApiResponse({ status: 200, description: 'Rol encontrado', type: Role })
+  @ApiResponse({ status: 401, description: 'No autenticado' })
+  @ApiResponse({ status: 403, description: 'Sin permisos' })
   @ApiResponse({ status: 404, description: 'Rol no encontrado' })
   async findOne(@Param('id', new ParseUUIDPipe()) id: string): Promise<Role> {
     return this.rolesService.findOneById(id);
