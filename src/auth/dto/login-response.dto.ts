@@ -24,4 +24,7 @@ export class LoginResponseDto {
 
   @ApiProperty({ example: 'jwt-access-token' })
   token!: string;
+
+  @ApiProperty({ example: 'jwt-refresh-token' })
+  refreshToken!: string;
 }
