@@ -4,6 +4,7 @@ import {
   ExceptionFilter,
   HttpException,
   HttpStatus,
+  Logger,
 } from '@nestjs/common';
 import type { Request, Response } from 'express';
 
@@ -23,12 +24,23 @@ interface HttpExceptionResponse {
 
 @Catch()
 export class GlobalExceptionFilter implements ExceptionFilter {
+  private readonly logger = new Logger(GlobalExceptionFilter.name);
+
   catch(exception: unknown, host: ArgumentsHost): void {
     const httpContext = host.switchToHttp();
     const response = httpContext.getResponse<Response>();
     const request = httpContext.getRequest<Request>();
     const statusCode = this.getStatusCode(exception);
     const exceptionResponse = this.getExceptionResponse(exception);
+
+    if (
+      statusCode === HttpStatus.INTERNAL_SERVER_ERROR &&
+      process.env.NODE_ENV === 'development'
+    ) {
+      this.logger.error(
+        exception instanceof Error ? exception.stack : exception,
+      );
+    }
 
     const payload: StandardErrorResponse = {
       statusCode,

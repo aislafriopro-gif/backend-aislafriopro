@@ -21,4 +21,7 @@ export class RegisterResponseDto {
 
   @ApiProperty({ example: 'jwt-access-token' })
   token!: string;
+
+  @ApiProperty({ example: 'jwt-refresh-token' })
+  refreshToken!: string;
 }

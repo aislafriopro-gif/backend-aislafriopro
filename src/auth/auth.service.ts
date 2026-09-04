@@ -49,6 +49,18 @@ export class AuthService {
       where: {
         email: normalizedEmail,
       },
+      select: {
+        id: true,
+        name: true,
+        email: true,
+        password: true,
+        phone: true,
+        status: true,
+        lastLoginAt: true,
+        createdAt: true,
+        updatedAt: true,
+        deletedAt: true,
+      },
       relations: {
         role: true,
       },
@@ -85,6 +97,7 @@ export class AuthService {
         role: user.role.name,
       },
       token: tokenPair.accessToken,
+      refreshToken: tokenPair.refreshToken,
     };
   }
 
@@ -151,6 +164,7 @@ export class AuthService {
         role: RoleName.CLIENT,
       },
       token: tokenPair.accessToken,
+      refreshToken: tokenPair.refreshToken,
     };
   }
 

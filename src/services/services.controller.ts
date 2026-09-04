@@ -26,6 +26,7 @@ import { UpdateServiceDto } from './dto/update-service.dto';
 import { ReorderServicesDto } from './dto/reorder-services.dto';
 import { ServiceResponseDto } from './dto/service-response.dto';
 import { FindServicesQueryDto } from './dto/find-services-query.dto';
+import { Public } from 'src/common/decorators/public.decorator';
 
 interface RequestUser {
   userId: string;
@@ -53,6 +54,10 @@ export class ServicesController {
     description: 'Servicio creado',
     type: Service,
   })
+  @ApiResponse({ status: 400, description: 'Datos inválidos' })
+  @ApiResponse({ status: 401, description: 'No autenticado' })
+  @ApiResponse({ status: 403, description: 'Sin permisos' })
+  @ApiResponse({ status: 409, description: 'Slug de servicio ya existente' })
   async create(@Body() createServiceDto: CreateServiceDto): Promise<Service> {
     return this.servicesService.create(createServiceDto);
   }
@@ -67,12 +72,15 @@ export class ServicesController {
     description: 'Listado paginado de todos los servicios',
     type: Service,
   })
+  @ApiResponse({ status: 401, description: 'No autenticado' })
+  @ApiResponse({ status: 403, description: 'Sin permisos' })
   async findAllAdmin(
     @Query() query: FindServicesQueryDto,
   ): Promise<PaginatedResponse<Service>> {
     return this.servicesService.findAllAdmin(query);
   }
 
+  @Public()
   @Get()
   @ApiOperation({ summary: 'Listar servicios activos' })
   @ApiResponse({
@@ -92,6 +100,7 @@ export class ServicesController {
     };
   }
 
+  @Public()
   @Get(':id')
   @ApiOperation({ summary: 'Obtener detalle de un servicio activo' })
   @ApiParam({ name: 'id', type: 'string', format: 'uuid' })
@@ -113,10 +122,11 @@ export class ServicesController {
   @HttpCode(HttpStatus.NO_CONTENT)
   @ApiOperation({ summary: 'Reordenar servicios (ADMIN)' })
   @ApiResponse({ status: 204, description: 'Servicios reordenados' })
+  @ApiResponse({ status: 400, description: 'Datos inválidos' })
+  @ApiResponse({ status: 401, description: 'No autenticado' })
+  @ApiResponse({ status: 403, description: 'Sin permisos' })
   @ApiResponse({ status: 404, description: 'Algún servicio no encontrado' })
-  async reorder(
-    @Body() reorderServicesDto: ReorderServicesDto,
-  ): Promise<void> {
+  async reorder(@Body() reorderServicesDto: ReorderServicesDto): Promise<void> {
     await this.servicesService.reorder(reorderServicesDto.orderedIds);
   }
 
@@ -129,7 +139,11 @@ export class ServicesController {
     description: 'Servicio actualizado',
     type: Service,
   })
+  @ApiResponse({ status: 400, description: 'Datos inválidos' })
+  @ApiResponse({ status: 401, description: 'No autenticado' })
+  @ApiResponse({ status: 403, description: 'Sin permisos' })
   @ApiResponse({ status: 404, description: 'Servicio no encontrado' })
+  @ApiResponse({ status: 409, description: 'Slug de servicio ya existente' })
   async update(
     @Param('id', new ParseUUIDPipe()) id: string,
     @Body() updateServiceDto: UpdateServiceDto,
@@ -143,6 +157,8 @@ export class ServicesController {
   @ApiOperation({ summary: 'Soft delete de un servicio (ADMIN)' })
   @ApiParam({ name: 'id', type: 'string', format: 'uuid' })
   @ApiResponse({ status: 204, description: 'Servicio eliminado (soft delete)' })
+  @ApiResponse({ status: 401, description: 'No autenticado' })
+  @ApiResponse({ status: 403, description: 'Sin permisos' })
   @ApiResponse({ status: 404, description: 'Servicio no encontrado' })
   async remove(@Param('id', new ParseUUIDPipe()) id: string): Promise<void> {
     await this.servicesService.remove(id);
@@ -157,6 +173,8 @@ export class ServicesController {
     description: 'Servicio restaurado',
     type: Service,
   })
+  @ApiResponse({ status: 401, description: 'No autenticado' })
+  @ApiResponse({ status: 403, description: 'Sin permisos' })
   @ApiResponse({ status: 404, description: 'Servicio no encontrado' })
   @ApiResponse({ status: 409, description: 'El servicio no está eliminado' })
   async restore(
@@ -169,7 +187,13 @@ export class ServicesController {
   @Auth(RoleName.ADMIN)
   @ApiOperation({ summary: 'Publicar un servicio (ADMIN)' })
   @ApiParam({ name: 'id', type: 'string', format: 'uuid' })
-  @ApiResponse({ status: 200, description: 'Servicio publicado', type: Service })
+  @ApiResponse({
+    status: 200,
+    description: 'Servicio publicado',
+    type: Service,
+  })
+  @ApiResponse({ status: 401, description: 'No autenticado' })
+  @ApiResponse({ status: 403, description: 'Sin permisos' })
   @ApiResponse({ status: 404, description: 'Servicio no encontrado' })
   @ApiResponse({ status: 409, description: 'El servicio ya está publicado' })
   async publish(
@@ -193,6 +217,8 @@ export class ServicesController {
     description: 'Servicio despublicado',
     type: Service,
   })
+  @ApiResponse({ status: 401, description: 'No autenticado' })
+  @ApiResponse({ status: 403, description: 'Sin permisos' })
   @ApiResponse({ status: 404, description: 'Servicio no encontrado' })
   @ApiResponse({ status: 409, description: 'El servicio ya está despublicado' })
   async unpublish(

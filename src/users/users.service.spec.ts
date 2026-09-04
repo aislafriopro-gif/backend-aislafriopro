@@ -9,7 +9,6 @@ import { AuditAction, AuditLog } from '../audit/entities/audit-action.entity';
 import { AuditService } from '../audit/audit.service';
 import { PaginationParamsDto, PaginatedResponse } from '../common/pagination';
 import { Role, RoleName } from '../roles/entities/roles.entity';
-import { SessionsService } from '../sessions/sessions.service';
 import { CreateUserDto } from './dto/create-user.dto';
 import { UpdateUserDto } from './dto/update-user.dto';
 import { User, UserStatus } from './entities/user.entity';
@@ -137,9 +136,6 @@ describe('UsersService', () => {
   >;
 
   let auditLogMock: jest.MockedFunction<AuditService['log']>;
-  let revokeAllByUserMock: jest.MockedFunction<
-    SessionsService['revokeAllByUser']
-  >;
 
   beforeEach(() => {
     jest.resetAllMocks();
@@ -229,12 +225,6 @@ describe('UsersService', () => {
     auditLogMock = jest
       .fn<ReturnType<AuditService['log']>, Parameters<AuditService['log']>>()
       .mockResolvedValue(buildAuditLog());
-    revokeAllByUserMock = jest
-      .fn<
-        ReturnType<SessionsService['revokeAllByUser']>,
-        Parameters<SessionsService['revokeAllByUser']>
-      >()
-      .mockResolvedValue(undefined);
 
     const userRepository = {
       findOne: findOneUserMock,
@@ -256,15 +246,10 @@ describe('UsersService', () => {
       log: auditLogMock,
     } as unknown as AuditService;
 
-    const sessionsService = {
-      revokeAllByUser: revokeAllByUserMock,
-    } as unknown as SessionsService;
-
     usersService = new UsersService(
       userRepository,
       roleRepository,
       auditService,
-      sessionsService,
     );
   });
 
