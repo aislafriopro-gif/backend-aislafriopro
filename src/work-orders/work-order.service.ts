@@ -127,8 +127,7 @@ export class WorkOrdersService {
   async findAll(
     query: FindWorkOrdersQueryDto,
   ): Promise<PaginatedResponse<WorkOrder>> {
-    const workOrderQuery = this.workOrderRepository
-      .createQueryBuilder('workOrder')
+    userId?: string,
       .leftJoinAndSelect('workOrder.client', 'client')
       .leftJoinAndSelect('client.user', 'clientUser')
       .leftJoinAndSelect('workOrder.technician', 'technician')
