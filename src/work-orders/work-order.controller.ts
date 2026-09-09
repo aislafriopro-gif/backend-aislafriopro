@@ -47,7 +47,7 @@ import { WorkOrdersService } from './work-order.service';
 export class WorkOrdersController {
   constructor(private readonly workOrdersService: WorkOrdersService) {}
 
-  @Auth(RoleName.TECHNICIAN)
+  @Auth(RoleName.ADMIN, RoleName.TECHNICIAN)
   @Get('my')
   @ApiOperation({ summary: 'Mis OTs - Técnico autenticado' })
   @ApiResponse({
@@ -59,9 +59,10 @@ export class WorkOrdersController {
   @ApiResponse({ status: 403, description: 'Sin permisos' })
   async findMy(
     @CurrentUser('userId') userId: string,
+    @CurrentUser('role') userRole: RoleName,
     @Query() query: FindWorkOrdersQueryDto,
   ) {
-    return this.workOrdersService.findMyWorkOrders(userId, query);
+    return this.workOrdersService.findMyWorkOrders(userId, userRole, query);
   }
 
   @Post()
@@ -277,7 +278,7 @@ export class WorkOrdersController {
     return this.workOrdersService.update(id, updateWorkOrderDto, userId);
   }
 
-  @Auth(RoleName.TECHNICIAN)
+  @Auth(RoleName.ADMIN, RoleName.TECHNICIAN)
   @Patch(':id/diligence')
   @ApiOperation({ summary: 'Diligenciar OT - Técnico asignado' })
   @ApiParam({ name: 'id', type: 'string', format: 'uuid' })
@@ -296,12 +297,13 @@ export class WorkOrdersController {
   async diligence(
     @Param('id', new ParseUUIDPipe()) id: string,
     @CurrentUser('userId') userId: string,
+    @CurrentUser('role') userRole: RoleName,
     @Body() dto: DiligenceDto,
   ) {
-    return this.workOrdersService.diligenceWorkOrder(id, userId, dto);
+    return this.workOrdersService.diligenceWorkOrder(id, userId, userRole, dto);
   }
 
-  @Auth(RoleName.TECHNICIAN)
+  @Auth(RoleName.ADMIN, RoleName.TECHNICIAN)
   @Post(':id/photos')
   @UseInterceptors(FilesInterceptor('photos', 10))
   @ApiOperation({ summary: 'Subir fotos a la OT - Técnico asignado' })
@@ -339,11 +341,12 @@ export class WorkOrdersController {
   async uploadPhotos(
     @Param('id', new ParseUUIDPipe()) workOrderId: string,
     @CurrentUser('userId') userId: string,
+    @CurrentUser('role') userRole: RoleName,
     @UploadedFiles() files: Express.Multer.File[],
   ) {
     if (!files || files.length === 0) {
       throw new BadRequestException('Debe enviar al menos una foto.');
     }
-    return this.workOrdersService.addPhotos(workOrderId, userId, files);
+    return this.workOrdersService.addPhotos(workOrderId, userId, userRole, files);
   }
 }

@@ -60,10 +60,11 @@ export class WorkOrdersService {
 
   async findMyWorkOrders(
     userId: string,
+    userRole: RoleName,
     query: FindWorkOrdersQueryDto,
   ): Promise<PaginatedResponse<WorkOrder>> {
     const [data, total] = await this.workOrderRepository.findAndCount({
-      where: { technicianId: userId },
+      where: userRole === RoleName.ADMIN ? {} : { technicianId: userId },
       relations: { client: true, quoteRequest: true, images: true },
       order: { createdAt: 'DESC' },
       skip: query.offset,
@@ -124,10 +125,51 @@ export class WorkOrdersService {
     return this.findOne(saved.id);
   }
 
+  async updateStatus(
+    id: string,
+    newStatus: WorkOrderStatus,
+    userId: string,
+  ): Promise<WorkOrder> {
+    const workOrder = await this.workOrderRepository.findOne({
+      where: { id },
+    });
+
+    if (!workOrder) {
+      throw new NotFoundException(
+        `Orden de trabajo con id "${id}" no encontrada`,
+      );
+    }
+
+    const allowedStatuses = ALLOWED_STATUS_TRANSITIONS[workOrder.status];
+
+    if (!allowedStatuses.includes(newStatus)) {
+      throw new BadRequestException(
+        `No se puede cambiar el estado de ${workOrder.status} a ${newStatus}`,
+      );
+    }
+
+    const previousData = this.auditData(workOrder);
+
+    workOrder.status = newStatus;
+    const savedWorkOrder = await this.workOrderRepository.save(workOrder);
+
+    await this.auditService.log({
+      action: AuditAction.UPDATE,
+      entityName: 'WorkOrder',
+      entityId: savedWorkOrder.id,
+      userId,
+      previousData,
+      newData: this.auditData(savedWorkOrder),
+    });
+
+    return this.findOne(savedWorkOrder.id);
+  }
+
   async findAll(
     query: FindWorkOrdersQueryDto,
   ): Promise<PaginatedResponse<WorkOrder>> {
-    userId?: string,
+    const workOrderQuery = this.workOrderRepository
+      .createQueryBuilder('workOrder')
       .leftJoinAndSelect('workOrder.client', 'client')
       .leftJoinAndSelect('client.user', 'clientUser')
       .leftJoinAndSelect('workOrder.technician', 'technician')
@@ -231,55 +273,10 @@ export class WorkOrdersService {
     return this.findOne(saved.id);
   }
 
-  async updateStatus(
-    id: string,
-    newStatus: WorkOrderStatus,
-    userId: string,
-    userRole: RoleName,
-  ): Promise<WorkOrder> {
-    const workOrder = await this.workOrderRepository.findOneBy({ id });
-
-    if (!workOrder) {
-      throw new NotFoundException(`Work order with id "${id}" not found`);
-    }
-
-    if (
-      userRole === RoleName.TECHNICIAN &&
-      workOrder.technicianId !== userId
-    ) {
-      throw new ForbiddenException(
-        'No tiene permisos para modificar el estado de esta orden de trabajo',
-      );
-    }
-
-    const currentStatus = workOrder.status;
-    const allowedStatuses = ALLOWED_STATUS_TRANSITIONS[currentStatus];
-
-    if (!allowedStatuses.includes(newStatus)) {
-      throw new BadRequestException(
-        `No se puede cambiar de ${currentStatus} a ${newStatus}`,
-      );
-    }
-
-    const previousData = this.auditData(workOrder);
-    workOrder.status = newStatus;
-    const saved = await this.workOrderRepository.save(workOrder);
-
-    await this.auditService.log({
-      action: AuditAction.UPDATE,
-      entityName: 'WorkOrder',
-      entityId: saved.id,
-      userId: userId ?? null,
-      previousData,
-      newData: this.auditData(saved),
-    });
-
-    return this.findOne(saved.id);
-  }
-
   async diligenceWorkOrder(
     id: string,
     userId: string,
+    userRole: RoleName,
     dto: DiligenceDto,
   ): Promise<WorkOrder> {
     const workOrder = await this.workOrderRepository.findOneBy({ id });
@@ -287,7 +284,7 @@ export class WorkOrdersService {
       throw new NotFoundException(`Work order with id "${id}" not found`);
     }
 
-    if (workOrder.technicianId !== userId) {
+    if (userRole !== RoleName.ADMIN && workOrder.technicianId !== userId) {
       throw new ForbiddenException(
         'No tiene permisos para diligenciar esta orden de trabajo',
       );
@@ -316,6 +313,7 @@ export class WorkOrdersService {
   async addPhotos(
     workOrderId: string,
     userId: string,
+    userRole: RoleName,
     files: Express.Multer.File[],
   ): Promise<Array<{ url: string; publicId: string }>> {
     const workOrder = await this.workOrderRepository.findOneBy({
@@ -327,7 +325,7 @@ export class WorkOrdersService {
       );
     }
 
-    if (workOrder.technicianId !== userId) {
+    if (userRole !== RoleName.ADMIN && workOrder.technicianId !== userId) {
       throw new ForbiddenException(
         'No tiene permisos para subir fotos a esta orden de trabajo',
       );
