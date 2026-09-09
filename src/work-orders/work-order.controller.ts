@@ -47,7 +47,7 @@ import { WorkOrdersService } from './work-order.service';
 export class WorkOrdersController {
   constructor(private readonly workOrdersService: WorkOrdersService) {}
 
-  @Auth(RoleName.TECHNICIAN)
+  @Auth(RoleName.ADMIN, RoleName.TECHNICIAN)
   @Get('my')
   @ApiOperation({ summary: 'Mis OTs - Técnico autenticado' })
   @ApiResponse({
@@ -59,16 +59,17 @@ export class WorkOrdersController {
   @ApiResponse({ status: 403, description: 'Sin permisos' })
   async findMy(
     @CurrentUser('userId') userId: string,
+    @CurrentUser('role') userRole: RoleName,
     @Query() query: FindWorkOrdersQueryDto,
   ) {
-    return this.workOrdersService.findMyWorkOrders(userId, query);
+    return this.workOrdersService.findMyWorkOrders(userId, userRole, query);
   }
 
   @Post()
-  @Auth(RoleName.ADMIN)
+  @Auth(RoleName.ADMIN, RoleName.TECHNICIAN)
   @HttpCode(HttpStatus.CREATED)
   @ApiBearerAuth('access-token')
-  @ApiOperation({ summary: 'Crear una orden de trabajo (ADMIN)' })
+  @ApiOperation({ summary: 'Crear una orden de trabajo (ADMIN o TECHNICIAN)' })
   @ApiBody({ type: CreateWorkOrderDto })
   @ApiResponse({
     status: HttpStatus.CREATED,
@@ -79,7 +80,6 @@ export class WorkOrdersController {
     status: HttpStatus.UNAUTHORIZED,
     description: 'No autenticado',
   })
-  @ApiResponse({ status: HttpStatus.FORBIDDEN, description: 'Sin permisos' })
   @ApiResponse({
     status: HttpStatus.BAD_REQUEST,
     description: 'Datos inválidos.',
@@ -97,9 +97,9 @@ export class WorkOrdersController {
 
   @Get()
   @ApiResponse({ status: 200, description: 'Listado paginado de órdenes de trabajo', type: WorkOrder, isArray: true })
-  @Auth(RoleName.ADMIN)
+  @Auth(RoleName.ADMIN, RoleName.TECHNICIAN)
   @ApiBearerAuth('access-token')
-  @ApiOperation({ summary: 'Listar órdenes de trabajo (ADMIN)' })
+  @ApiOperation({ summary: 'Listar órdenes de trabajo (ADMIN o TECHNICIAN)' })
   @ApiQuery({
     name: 'technicianId',
     required: false,
@@ -169,21 +169,15 @@ export class WorkOrdersController {
     status: HttpStatus.NOT_FOUND,
     description: 'Orden de trabajo no encontrada.',
   })
-  @ApiResponse({
-    status: HttpStatus.FORBIDDEN,
-    description: 'El técnico no está asignado a la orden de trabajo.',
-  })
   async updateStatus(
     @Param('id', new ParseUUIDPipe()) id: string,
     @Body() updateWorkOrderStatusDto: UpdateWorkOrderStatusDto,
     @CurrentUser('userId') userId: string,
-    @CurrentUser('role') userRole: RoleName,
   ): Promise<WorkOrder> {
     return this.workOrdersService.updateStatus(
       id,
       updateWorkOrderStatusDto.status,
       userId,
-      userRole,
     );
   }
 
@@ -228,9 +222,9 @@ export class WorkOrdersController {
   }
 
   @Get(':id')
-  @Auth(RoleName.ADMIN)
+  @Auth(RoleName.ADMIN, RoleName.TECHNICIAN)
   @ApiBearerAuth('access-token')
-  @ApiOperation({ summary: 'Obtener una orden de trabajo (ADMIN)' })
+  @ApiOperation({ summary: 'Obtener una orden de trabajo (ADMIN o TECHNICIAN)' })
   @ApiParam({ name: 'id', type: 'string', format: 'uuid' })
   @ApiResponse({
     status: HttpStatus.OK,
@@ -253,9 +247,9 @@ export class WorkOrdersController {
   }
 
   @Patch(':id')
-  @Auth(RoleName.ADMIN)
+  @Auth(RoleName.ADMIN, RoleName.TECHNICIAN)
   @ApiBearerAuth('access-token')
-  @ApiOperation({ summary: 'Actualizar una orden de trabajo (ADMIN)' })
+  @ApiOperation({ summary: 'Actualizar una orden de trabajo (ADMIN o TECHNICIAN)' })
   @ApiParam({ name: 'id', type: 'string', format: 'uuid' })
   @ApiBody({ type: UpdateWorkOrderDto })
   @ApiResponse({
@@ -284,7 +278,7 @@ export class WorkOrdersController {
     return this.workOrdersService.update(id, updateWorkOrderDto, userId);
   }
 
-  @Auth(RoleName.TECHNICIAN)
+  @Auth(RoleName.ADMIN, RoleName.TECHNICIAN)
   @Patch(':id/diligence')
   @ApiOperation({ summary: 'Diligenciar OT - Técnico asignado' })
   @ApiParam({ name: 'id', type: 'string', format: 'uuid' })
@@ -303,12 +297,13 @@ export class WorkOrdersController {
   async diligence(
     @Param('id', new ParseUUIDPipe()) id: string,
     @CurrentUser('userId') userId: string,
+    @CurrentUser('role') userRole: RoleName,
     @Body() dto: DiligenceDto,
   ) {
-    return this.workOrdersService.diligenceWorkOrder(id, userId, dto);
+    return this.workOrdersService.diligenceWorkOrder(id, userId, userRole, dto);
   }
 
-  @Auth(RoleName.TECHNICIAN)
+  @Auth(RoleName.ADMIN, RoleName.TECHNICIAN)
   @Post(':id/photos')
   @UseInterceptors(FilesInterceptor('photos', 10))
   @ApiOperation({ summary: 'Subir fotos a la OT - Técnico asignado' })
@@ -346,11 +341,12 @@ export class WorkOrdersController {
   async uploadPhotos(
     @Param('id', new ParseUUIDPipe()) workOrderId: string,
     @CurrentUser('userId') userId: string,
+    @CurrentUser('role') userRole: RoleName,
     @UploadedFiles() files: Express.Multer.File[],
   ) {
     if (!files || files.length === 0) {
       throw new BadRequestException('Debe enviar al menos una foto.');
     }
-    return this.workOrdersService.addPhotos(workOrderId, userId, files);
+    return this.workOrdersService.addPhotos(workOrderId, userId, userRole, files);
   }
 }
