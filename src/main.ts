@@ -1,4 +1,4 @@
-import { ValidationPipe } from '@nestjs/common';
+import { LogLevel, ValidationPipe } from '@nestjs/common';
 import { ConfigService } from '@nestjs/config';
 import { NestFactory } from '@nestjs/core';
 import { DocumentBuilder, SwaggerModule } from '@nestjs/swagger';
@@ -7,6 +7,23 @@ import { AppModule } from './app.module';
 import { GlobalExceptionFilter } from './common/filters/global-exception.filter';
 import { LoggingInterceptor } from './common/interceptors/logging.interceptor';
 import { ApplicationConfiguration } from './config/configuration';
+
+function getEnabledLogLevels(
+  level: ApplicationConfiguration['logging']['level'],
+): LogLevel[] {
+  const levelsByMinimumLevel: Record<
+    ApplicationConfiguration['logging']['level'],
+    LogLevel[]
+  > = {
+    error: ['error'],
+    warn: ['error', 'warn'],
+    log: ['error', 'warn', 'log'],
+    debug: ['error', 'warn', 'log', 'debug'],
+    verbose: ['error', 'warn', 'log', 'debug', 'verbose'],
+  };
+
+  return levelsByMinimumLevel[level];
+}
 
 async function bootstrap() {
   const app = await NestFactory.create(AppModule);
@@ -21,6 +38,11 @@ async function bootstrap() {
   const swaggerPath = configService.getOrThrow('swagger.path', {
     infer: true,
   });
+  const logLevel = configService.getOrThrow('logging.level', {
+    infer: true,
+  });
+
+  app.useLogger(getEnabledLogLevels(logLevel));
 
   app.use(swaggerEnabled ? helmet({ contentSecurityPolicy: false }) : helmet());
 

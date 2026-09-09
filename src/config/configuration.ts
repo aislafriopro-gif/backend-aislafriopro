@@ -1,9 +1,14 @@
 export type NodeEnvironment = 'development' | 'test' | 'production';
+export type ApplicationLogLevel =
+  'error' | 'warn' | 'log' | 'debug' | 'verbose';
 
 export interface ApplicationConfiguration {
   app: {
     environment: NodeEnvironment;
     port: number;
+  };
+  logging: {
+    level: ApplicationLogLevel;
   };
   http: {
     corsOrigins: string[];
@@ -46,6 +51,14 @@ const DEFAULT_CORS_ORIGINS = ['http://localhost:3000', 'http://localhost:5173'];
 const DEFAULT_SWAGGER_PATH = 'api/docs';
 const DEFAULT_THROTTLE_TTL = 60 * 1000;
 const DEFAULT_THROTTLE_LIMIT = 100;
+const DEFAULT_LOG_LEVEL: ApplicationLogLevel = 'log';
+const LOG_LEVELS: ApplicationLogLevel[] = [
+  'error',
+  'warn',
+  'log',
+  'debug',
+  'verbose',
+];
 
 function readRequiredString(
   source: Record<string, unknown>,
@@ -153,6 +166,28 @@ function readBoolean(
   }
 
   throw new Error(`La variable de entorno ${key} debe ser true o false.`);
+}
+
+function readLogLevel(source: Record<string, unknown>): ApplicationLogLevel {
+  const rawValue = source.LOG_LEVEL;
+
+  if (rawValue === undefined || rawValue === null || rawValue === '') {
+    return DEFAULT_LOG_LEVEL;
+  }
+
+  if (typeof rawValue !== 'string') {
+    throw new Error('La variable de entorno LOG_LEVEL debe ser texto.');
+  }
+
+  const normalizedValue = rawValue.trim().toLowerCase();
+
+  if (!LOG_LEVELS.includes(normalizedValue as ApplicationLogLevel)) {
+    throw new Error(
+      'La variable de entorno LOG_LEVEL debe ser error, warn, log, debug o verbose.',
+    );
+  }
+
+  return normalizedValue as ApplicationLogLevel;
 }
 
 function readCorsOrigins(
@@ -329,6 +364,7 @@ export function validateEnvironment(
   readPositiveInteger(source, 'THROTTLE_LIMIT', DEFAULT_THROTTLE_LIMIT);
   readBoolean(source, 'SWAGGER_ENABLED', environment !== 'production');
   readSwaggerPath(source);
+  readLogLevel(source);
 
   readRequiredString(source, 'DB_HOST');
   readInteger(source, 'DB_PORT', DEFAULT_DB_PORT);
@@ -384,6 +420,9 @@ export default (): ApplicationConfiguration => {
     app: {
       environment,
       port: readInteger(process.env, 'PORT', DEFAULT_PORT),
+    },
+    logging: {
+      level: readLogLevel(process.env),
     },
     http: {
       corsOrigins: readCorsOrigins(process.env, environment),

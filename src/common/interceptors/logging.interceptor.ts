@@ -23,9 +23,7 @@ export class LoggingInterceptor implements NestInterceptor {
 
     return next.handle().pipe(
       tap(() => {
-        this.logger.log(
-          this.formatLog(request.method, path, response.statusCode, startedAt),
-        );
+        this.logRequest(request.method, path, response.statusCode, startedAt);
       }),
       catchError((error: unknown) => {
         const statusCode =
@@ -33,21 +31,40 @@ export class LoggingInterceptor implements NestInterceptor {
             ? error.getStatus()
             : HttpStatus.INTERNAL_SERVER_ERROR;
 
-        this.logger.error(
-          this.formatLog(request.method, path, statusCode, startedAt),
-        );
+        this.logRequest(request.method, path, statusCode, startedAt);
 
         return throwError(() => error);
       }),
     );
   }
 
-  private formatLog(
+  private logRequest(
     method: string,
     path: string,
     statusCode: number,
     startedAt: number,
-  ): string {
-    return `${method} ${path} ${statusCode} ${Date.now() - startedAt}ms`;
+  ): void {
+    const payload = {
+      timestamp: new Date().toISOString(),
+      context: 'HTTP',
+      method,
+      path,
+      statusCode,
+      responseTimeMs: Date.now() - startedAt,
+    };
+
+    const message = JSON.stringify(payload);
+
+    if (statusCode >= 500) {
+      this.logger.error(message);
+      return;
+    }
+
+    if (statusCode >= 400) {
+      this.logger.warn(message);
+      return;
+    }
+
+    this.logger.log(message);
   }
 }
