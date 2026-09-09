@@ -144,10 +144,10 @@ export class WorkOrdersController {
   }
 
   @Patch(':id/status')
-  @Auth(RoleName.ADMIN)
+  @Auth(RoleName.ADMIN, RoleName.TECHNICIAN)
   @ApiBearerAuth('access-token')
   @ApiOperation({
-    summary: 'Actualizar el estado de una orden de trabajo (ADMIN)',
+    summary: 'Actualizar el estado de una orden de trabajo (ADMIN o TECHNICIAN)',
   })
   @ApiParam({ name: 'id', type: 'string', format: 'uuid' })
   @ApiBody({ type: UpdateWorkOrderStatusDto })
@@ -169,15 +169,21 @@ export class WorkOrdersController {
     status: HttpStatus.NOT_FOUND,
     description: 'Orden de trabajo no encontrada.',
   })
+  @ApiResponse({
+    status: HttpStatus.FORBIDDEN,
+    description: 'El técnico no está asignado a la orden de trabajo.',
+  })
   async updateStatus(
     @Param('id', new ParseUUIDPipe()) id: string,
     @Body() updateWorkOrderStatusDto: UpdateWorkOrderStatusDto,
-    @CurrentUser('userId') userId: string | undefined,
+    @CurrentUser('userId') userId: string,
+    @CurrentUser('role') userRole: RoleName,
   ): Promise<WorkOrder> {
     return this.workOrdersService.updateStatus(
       id,
       updateWorkOrderStatusDto.status,
       userId,
+      userRole,
     );
   }
 
