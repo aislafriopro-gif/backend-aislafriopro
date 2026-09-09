@@ -235,12 +235,22 @@ export class WorkOrdersService {
   async updateStatus(
     id: string,
     newStatus: WorkOrderStatus,
-    userId?: string,
+    userId: string,
+    userRole: RoleName,
   ): Promise<WorkOrder> {
     const workOrder = await this.workOrderRepository.findOneBy({ id });
 
     if (!workOrder) {
       throw new NotFoundException(`Work order with id "${id}" not found`);
+    }
+
+    if (
+      userRole === RoleName.TECHNICIAN &&
+      workOrder.technicianId !== userId
+    ) {
+      throw new ForbiddenException(
+        'No tiene permisos para modificar el estado de esta orden de trabajo',
+      );
     }
 
     const currentStatus = workOrder.status;
