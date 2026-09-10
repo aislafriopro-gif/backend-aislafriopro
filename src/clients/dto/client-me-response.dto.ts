@@ -1,4 +1,5 @@
 import { ApiProperty } from '@nestjs/swagger';
+import { WorkOrder } from '../../work-orders/entities/work-order.entity';
 
 export class ClientProfileResponseDto {
   @ApiProperty({ example: '7be6ef16-1a45-4b82-950c-3411fef49b28' })
@@ -38,11 +39,9 @@ export class ClientMeResponseDto {
   @ApiProperty({ type: [ClientQuoteRequestResponseDto] })
   quoteRequests!: ClientQuoteRequestResponseDto[];
 
-  // TODO: integrar WorkOrder en la respuesta cuando se defina el alcance de /clients/me.
   @ApiProperty({
-    type: [Object],
-    description:
-      'Órdenes de trabajo del cliente. Actualmente retorna vacío hasta integrar WorkOrder en este endpoint.',
+    type: [WorkOrder],
+    description: 'Órdenes de trabajo asociadas al cliente.',
   })
-  workOrders!: unknown[];
+  workOrders!: WorkOrder[];
 }
