@@ -7,6 +7,7 @@ import {
   buildPaginatedResponse,
 } from '../common/pagination';
 import { QuoteRequest } from '../quote-requests/entities/quote-request.entity';
+import { WorkOrder } from '../work-orders/entities/work-order.entity';
 import { Client } from './entities/client.entity';
 import {
   ClientMeResponseDto,
@@ -21,6 +22,8 @@ export class ClientsService {
     private readonly clientRepository: Repository<Client>,
     @InjectRepository(QuoteRequest)
     private readonly quoteRequestRepository: Repository<QuoteRequest>,
+    @InjectRepository(WorkOrder)
+    private readonly workOrderRepository: Repository<WorkOrder>,
   ) {}
 
   async findAll(
@@ -83,14 +86,24 @@ export class ClientsService {
         createdAt: 'DESC',
       },
     });
+    const workOrders = await this.workOrderRepository.find({
+      where: { clientId: client.id },
+      relations: {
+        technician: true,
+        quoteRequest: {
+          service: true,
+        },
+        images: true,
+      },
+      order: { createdAt: 'DESC' },
+    });
 
     return {
       client: this.mapClientProfile(client),
       quoteRequests: quoteRequests.map((quoteRequest) =>
         this.mapQuoteRequest(quoteRequest),
       ),
-      // TODO: integrar WorkOrder en la respuesta cuando se defina el alcance de /clients/me.
-      workOrders: [],
+      workOrders,
     };
   }
 
