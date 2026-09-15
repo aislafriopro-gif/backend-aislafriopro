@@ -12,7 +12,7 @@ import * as bcrypt from 'bcrypt';
 import { Repository } from 'typeorm';
 import type { ApplicationConfiguration } from '../config/configuration';
 import { SessionsService } from '../sessions/sessions.service';
-import { User } from '../users/entities/user.entity';
+import { AuthProvider, User } from '../users/entities/user.entity';
 import { LoginDto } from './dto/login.dto';
 import { JwtPayload } from './interfaces/jwt-payload.interface';
 import { RefreshJwtPayload } from './interfaces/refresh-jwt-payload.interface';
@@ -26,6 +26,8 @@ import { LoginResponseDto } from './dto/login-response.dto';
 
 const INVALID_CREDENTIALS_MESSAGE = 'Credenciales inválidas.';
 const INVALID_REFRESH_TOKEN_MESSAGE = 'Refresh token inválido.';
+const GOOGLE_ACCOUNT_LOCAL_LOGIN_MESSAGE =
+  'Esta cuenta fue registrada con Google. Iniciá sesión con Google para continuar.';
 
 @Injectable()
 export class AuthService {
@@ -54,6 +56,7 @@ export class AuthService {
         name: true,
         email: true,
         password: true,
+        authProvider: true,
         phone: true,
         status: true,
         lastLoginAt: true,
@@ -67,6 +70,14 @@ export class AuthService {
     });
 
     if (!user || user.deletedAt) {
+      throw new UnauthorizedException(INVALID_CREDENTIALS_MESSAGE);
+    }
+
+    if (user.authProvider === AuthProvider.GOOGLE && !user.password) {
+      throw new UnauthorizedException(GOOGLE_ACCOUNT_LOCAL_LOGIN_MESSAGE);
+    }
+
+    if (!user.password) {
       throw new UnauthorizedException(INVALID_CREDENTIALS_MESSAGE);
     }
 
@@ -133,6 +144,7 @@ export class AuthService {
           email: normalizedEmail,
           phone: registerDto.phone,
           password: hashedPassword,
+          authProvider: AuthProvider.LOCAL,
           role: clientRole,
         });
 

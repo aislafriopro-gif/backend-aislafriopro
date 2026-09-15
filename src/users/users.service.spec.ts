@@ -11,7 +11,7 @@ import { PaginationParamsDto, PaginatedResponse } from '../common/pagination';
 import { Role, RoleName } from '../roles/entities/roles.entity';
 import { CreateUserDto } from './dto/create-user.dto';
 import { UpdateUserDto } from './dto/update-user.dto';
-import { User, UserStatus } from './entities/user.entity';
+import { AuthProvider, User, UserStatus } from './entities/user.entity';
 import { UsersService } from './users.service';
 
 jest.mock('bcrypt', () => ({
@@ -44,6 +44,8 @@ const buildUser = (overrides: Partial<User> = {}): User => ({
   name: 'Usuario de prueba',
   email: 'usuario@aislafriopro.com',
   password: MOCK_HASHED_PASSWORD,
+  authProvider: AuthProvider.LOCAL,
+  providerId: null,
   phone: null,
   status: UserStatus.ACTIVE,
   lastLoginAt: null,
@@ -87,6 +89,7 @@ const buildPaginatedResponse = <T>(
   page: 1,
   limit: 10,
   totalPages: total === 0 ? 0 : Math.ceil(total / 10),
+  hasMore: total > 10,
 });
 
 describe('UsersService', () => {

@@ -20,6 +20,11 @@ export enum UserStatus {
   SUSPENDED = 'SUSPENDED',
 }
 
+export enum AuthProvider {
+  LOCAL = 'LOCAL',
+  GOOGLE = 'GOOGLE',
+}
+
 @Entity('users')
 @Index('UQ_users_email_active', ['email'], {
   unique: true,
@@ -35,8 +40,18 @@ export class User {
   @Column({ type: 'varchar' })
   email!: string;
 
-  @Column({ type: 'varchar', nullable: false, select: false })
-  password!: string;
+  @Column({ type: 'varchar', nullable: true, select: false })
+  password!: string | null;
+
+  @Column({
+    type: 'enum',
+    enum: AuthProvider,
+    default: AuthProvider.LOCAL,
+  })
+  authProvider!: AuthProvider;
+
+  @Column({ type: 'varchar', nullable: true })
+  providerId!: string | null;
 
   @Column({ type: 'varchar', length: 20, nullable: true })
   phone!: string | null;
