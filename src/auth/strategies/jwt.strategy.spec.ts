@@ -3,7 +3,11 @@ import { ConfigService } from '@nestjs/config';
 import { Repository } from 'typeorm';
 import type { ApplicationConfiguration } from '../../config/configuration';
 import { RoleName } from '../../roles/entities/roles.entity';
-import { User, UserStatus } from '../../users/entities/user.entity';
+import {
+  AuthProvider,
+  User,
+  UserStatus,
+} from '../../users/entities/user.entity';
 import { JwtPayload } from '../interfaces/jwt-payload.interface';
 import { JwtStrategy } from './jwt.strategy';
 
@@ -40,6 +44,8 @@ describe('JwtStrategy', () => {
     name: 'Usuario de prueba',
     email: 'usuario@aislafriopro.com',
     password: 'password-hash',
+    authProvider: AuthProvider.LOCAL,
+    providerId: null,
     phone: null,
     status: UserStatus.ACTIVE,
     lastLoginAt: null,
