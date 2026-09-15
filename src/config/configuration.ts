@@ -35,6 +35,9 @@ export interface ApplicationConfiguration {
     refreshSecret: string;
     refreshExpiresInSeconds: number;
   };
+  google: {
+    clientId: string;
+  };
   cloudinary: {
     cloudName: string;
     apiKey: string;
@@ -408,6 +411,8 @@ export function validateEnvironment(
     DEFAULT_JWT_REFRESH_EXPIRES_IN_SECONDS,
   );
 
+  readRequiredString(source, 'GOOGLE_CLIENT_ID');
+
   readCloudinaryConfiguration(source);
 
   return source;
@@ -468,6 +473,9 @@ export default (): ApplicationConfiguration => {
         'JWT_REFRESH_EXPIRES_IN_SECONDS',
         DEFAULT_JWT_REFRESH_EXPIRES_IN_SECONDS,
       ),
+    },
+    google: {
+      clientId: readRequiredString(process.env, 'GOOGLE_CLIENT_ID'),
     },
     cloudinary: readCloudinaryConfiguration(process.env),
   };
