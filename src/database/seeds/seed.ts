@@ -2,7 +2,7 @@ import 'dotenv/config';
 import * as bcrypt from 'bcrypt';
 import dataSource from '../data-source';
 import { Role, RoleName } from '../../roles/entities/roles.entity';
-import { User } from '../../users/entities/user.entity';
+import { AuthProvider, User } from '../../users/entities/user.entity';
 import { Client } from '../../clients/entities/client.entity';
 
 const DEFAULT_PASSWORD = 'PassWord23!';
@@ -108,6 +108,7 @@ async function seedUsers(
       name: fullName,
       email,
       password: hashedPassword,
+      authProvider: AuthProvider.LOCAL,
       role,
     });
 

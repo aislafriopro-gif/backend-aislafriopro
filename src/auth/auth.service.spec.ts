@@ -14,7 +14,7 @@ import {
   CreateSessionInput,
   SessionsService,
 } from '../sessions/sessions.service';
-import { User, UserStatus } from '../users/entities/user.entity';
+import { AuthProvider, User, UserStatus } from '../users/entities/user.entity';
 import { AuthService } from './auth.service';
 import { JwtPayload } from './interfaces/jwt-payload.interface';
 import { RefreshJwtPayload } from './interfaces/refresh-jwt-payload.interface';
@@ -160,6 +160,8 @@ describe('AuthService', () => {
     name: 'Usuario de prueba',
     email: 'usuario@aislafriopro.com',
     password: passwordHash,
+    authProvider: AuthProvider.LOCAL,
+    providerId: null,
     phone: null,
     status: UserStatus.ACTIVE,
     lastLoginAt: null,
@@ -221,6 +223,19 @@ describe('AuthService', () => {
       where: {
         email: 'usuario@aislafriopro.com',
       },
+      select: {
+        id: true,
+        name: true,
+        email: true,
+        password: true,
+        authProvider: true,
+        phone: true,
+        status: true,
+        lastLoginAt: true,
+        createdAt: true,
+        updatedAt: true,
+        deletedAt: true,
+      },
       relations: {
         role: true,
       },
@@ -261,6 +276,32 @@ describe('AuthService', () => {
         password: 'PasswordIncorrecta',
       }),
     ).rejects.toThrow('Credenciales inválidas.');
+  });
+
+  it('debe rechazar login local para una cuenta Google sin contraseña', async () => {
+    findOneMock.mockResolvedValue(
+      buildUser({
+        password: null,
+        authProvider: AuthProvider.GOOGLE,
+        providerId: 'google-user-id',
+      }),
+    );
+
+    await expect(
+      authService.validateCredentials({
+        email: 'usuario@aislafriopro.com',
+        password: 'Password123',
+      }),
+    ).rejects.toThrow(UnauthorizedException);
+
+    await expect(
+      authService.validateCredentials({
+        email: 'usuario@aislafriopro.com',
+        password: 'Password123',
+      }),
+    ).rejects.toThrow(
+      'Esta cuenta fue registrada con Google. Iniciá sesión con Google para continuar.',
+    );
   });
 
   it('debe rechazar un usuario eliminado', async () => {
@@ -309,6 +350,7 @@ describe('AuthService', () => {
         role: user.role.name,
       },
       token: 'jwt-access-token',
+      refreshToken: RAW_REFRESH_TOKEN,
     });
 
     expect(signAsyncMock).toHaveBeenCalledTimes(2);
@@ -571,6 +613,7 @@ describe('AuthService', () => {
           role: RoleName.CLIENT,
         },
         token: 'jwt-access-token',
+        refreshToken: RAW_REFRESH_TOKEN,
       });
 
       expect(findOneMock).toHaveBeenCalledWith({

@@ -2,7 +2,7 @@ import { Request } from 'express';
 import { RoleName } from '../roles/entities/roles.entity';
 import { ChangeStatusDto } from './dto/change-status.dto';
 import { FindUsersQueryDto } from './dto/find-users-query.dto';
-import { User, UserStatus } from './entities/user.entity';
+import { AuthProvider, User, UserStatus } from './entities/user.entity';
 import { UsersController } from './users.controller';
 import { UsersService } from './users.service';
 
@@ -13,6 +13,8 @@ const buildUser = (overrides: Partial<User> = {}): User =>
       name: 'Usuario de prueba',
       email: 'usuario@aislafriopro.com',
       password: 'password-hash',
+      authProvider: AuthProvider.LOCAL,
+      providerId: null,
       phone: null,
       status: 'ACTIVE',
       lastLoginAt: null,
@@ -51,6 +53,7 @@ const buildPaginatedResponse = () => ({
   page: 1,
   limit: 10,
   totalPages: 1,
+  hasMore: false,
 });
 
 describe('UsersController', () => {
