@@ -7,6 +7,11 @@ import { Product } from '../products/entities/product.entity';
 import { Project } from '../projects/entities/project.entity';
 import { DashboardService } from './dashboard.service';
 import { RoleName } from '../roles/entities/roles.entity';
+import { Client } from '../clients/entities/client.entity';
+import {
+  WorkOrder,
+  WorkOrderStatus,
+} from '../work-orders/entities/work-order.entity';
 
 describe('DashboardService', () => {
   let dashboardService: DashboardService;
@@ -14,6 +19,8 @@ describe('DashboardService', () => {
   let countQuoteRequestsMock: jest.Mock<Promise<number>, [unknown?]>;
   let countProjectsMock: jest.Mock<Promise<number>, [unknown?]>;
   let countProductsMock: jest.Mock<Promise<number>, [unknown?]>;
+  let countWorkOrdersMock: jest.Mock<Promise<number>, [unknown?]>;
+  let findOneClientMock: jest.Mock<Promise<Client | null>, [unknown]>;
 
   beforeEach(() => {
     countQuoteRequestsMock = jest
@@ -31,6 +38,15 @@ describe('DashboardService', () => {
       .fn<Promise<number>, [unknown?]>()
       .mockResolvedValue(12);
 
+    countWorkOrdersMock = jest
+      .fn<Promise<number>, [unknown?]>()
+      .mockResolvedValueOnce(9)
+      .mockResolvedValueOnce(3)
+      .mockResolvedValueOnce(4)
+      .mockResolvedValueOnce(2);
+
+    findOneClientMock = jest.fn<Promise<Client | null>, [unknown]>();
+
     const quoteRequestRepository = {
       count: countQuoteRequestsMock,
     } as unknown as Repository<QuoteRequest>;
@@ -43,10 +59,20 @@ describe('DashboardService', () => {
       count: countProductsMock,
     } as unknown as Repository<Product>;
 
+    const workOrderRepository = {
+      count: countWorkOrdersMock,
+    } as unknown as Repository<WorkOrder>;
+
+    const clientRepository = {
+      findOne: findOneClientMock,
+    } as unknown as Repository<Client>;
+
     dashboardService = new DashboardService(
       quoteRequestRepository,
       projectRepository,
       productRepository,
+      workOrderRepository,
+      clientRepository,
     );
   });
 
@@ -59,7 +85,7 @@ describe('DashboardService', () => {
 
     expect(result).toEqual({
       totalQuotes: 10,
-      totalWorkOrders: 0,
+      totalWorkOrders: 9,
       totalProjects: 6,
       totalProducts: 12,
       quotesByStatus: {
@@ -69,9 +95,9 @@ describe('DashboardService', () => {
         REJECTED: 1,
       },
       workOrdersByStatus: {
-        PENDING: 0,
-        IN_PROGRESS: 0,
-        COMPLETED: 0,
+        PENDING: 3,
+        IN_PROGRESS: 4,
+        COMPLETED: 2,
       },
     });
 
@@ -94,6 +120,16 @@ describe('DashboardService', () => {
     expect(countProductsMock).toHaveBeenCalledWith({
       where: { deletedAt: IsNull() },
     });
+    expect(countWorkOrdersMock).toHaveBeenNthCalledWith(1);
+    expect(countWorkOrdersMock).toHaveBeenNthCalledWith(2, {
+      where: { status: WorkOrderStatus.PENDING },
+    });
+    expect(countWorkOrdersMock).toHaveBeenNthCalledWith(3, {
+      where: { status: WorkOrderStatus.IN_PROGRESS },
+    });
+    expect(countWorkOrdersMock).toHaveBeenNthCalledWith(4, {
+      where: { status: WorkOrderStatus.COMPLETED },
+    });
   });
 
   it('debe devolver solo estadísticas propias para CLIENT', async () => {
@@ -108,11 +144,25 @@ describe('DashboardService', () => {
     const quoteRequestRepository = {
       count: countQuoteRequestsMock,
     } as unknown as Repository<QuoteRequest>;
+    countWorkOrdersMock = jest
+      .fn<Promise<number>, [unknown?]>()
+      .mockResolvedValueOnce(2)
+      .mockResolvedValueOnce(1)
+      .mockResolvedValueOnce(3);
+
+    findOneClientMock = jest
+      .fn<Promise<Client | null>, [unknown]>()
+      .mockResolvedValue({
+        id: 'client-id',
+        userId: 'client-user-id',
+      } as Client);
 
     dashboardService = new DashboardService(
       quoteRequestRepository,
       { count: countProjectsMock } as unknown as Repository<Project>,
       { count: countProductsMock } as unknown as Repository<Product>,
+      { count: countWorkOrdersMock } as unknown as Repository<WorkOrder>,
+      { findOne: findOneClientMock } as unknown as Repository<Client>,
     );
 
     const result = await dashboardService.getStats({
@@ -123,7 +173,7 @@ describe('DashboardService', () => {
 
     expect(result).toEqual({
       totalQuotes: 5,
-      totalWorkOrders: 0,
+      totalWorkOrders: 6,
       totalProjects: 0,
       totalProducts: 0,
       quotesByStatus: {
@@ -133,9 +183,9 @@ describe('DashboardService', () => {
         REJECTED: 1,
       },
       workOrdersByStatus: {
-        PENDING: 0,
-        IN_PROGRESS: 0,
-        COMPLETED: 0,
+        PENDING: 2,
+        IN_PROGRESS: 1,
+        COMPLETED: 3,
       },
     });
 
@@ -150,9 +200,27 @@ describe('DashboardService', () => {
     });
     expect(countProjectsMock).not.toHaveBeenCalled();
     expect(countProductsMock).not.toHaveBeenCalled();
+    expect(findOneClientMock).toHaveBeenCalledWith({
+      where: { userId: 'client-user-id' },
+    });
+    expect(countWorkOrdersMock).toHaveBeenNthCalledWith(1, {
+      where: { clientId: 'client-id', status: WorkOrderStatus.PENDING },
+    });
+    expect(countWorkOrdersMock).toHaveBeenNthCalledWith(2, {
+      where: { clientId: 'client-id', status: WorkOrderStatus.IN_PROGRESS },
+    });
+    expect(countWorkOrdersMock).toHaveBeenNthCalledWith(3, {
+      where: { clientId: 'client-id', status: WorkOrderStatus.COMPLETED },
+    });
   });
 
-  it('debe devolver estadísticas vacías para TECHNICIAN mientras no exista WorkOrder', async () => {
+  it('debe devolver estadísticas reales de OTs para TECHNICIAN', async () => {
+    countWorkOrdersMock.mockReset();
+    countWorkOrdersMock
+      .mockResolvedValueOnce(1)
+      .mockResolvedValueOnce(2)
+      .mockResolvedValueOnce(4);
+
     const result = await dashboardService.getStats({
       userId: 'technician-user-id',
       email: 'technician@aislafriopro.com',
@@ -161,7 +229,7 @@ describe('DashboardService', () => {
 
     expect(result).toEqual({
       totalQuotes: 0,
-      totalWorkOrders: 0,
+      totalWorkOrders: 7,
       totalProjects: 0,
       totalProducts: 0,
       quotesByStatus: {
@@ -171,14 +239,32 @@ describe('DashboardService', () => {
         REJECTED: 0,
       },
       workOrdersByStatus: {
-        PENDING: 0,
-        IN_PROGRESS: 0,
-        COMPLETED: 0,
+        PENDING: 1,
+        IN_PROGRESS: 2,
+        COMPLETED: 4,
       },
     });
 
     expect(countQuoteRequestsMock).not.toHaveBeenCalled();
     expect(countProjectsMock).not.toHaveBeenCalled();
     expect(countProductsMock).not.toHaveBeenCalled();
+    expect(countWorkOrdersMock).toHaveBeenNthCalledWith(1, {
+      where: {
+        technicianId: 'technician-user-id',
+        status: WorkOrderStatus.PENDING,
+      },
+    });
+    expect(countWorkOrdersMock).toHaveBeenNthCalledWith(2, {
+      where: {
+        technicianId: 'technician-user-id',
+        status: WorkOrderStatus.IN_PROGRESS,
+      },
+    });
+    expect(countWorkOrdersMock).toHaveBeenNthCalledWith(3, {
+      where: {
+        technicianId: 'technician-user-id',
+        status: WorkOrderStatus.COMPLETED,
+      },
+    });
   });
 });
