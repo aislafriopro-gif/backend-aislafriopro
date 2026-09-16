@@ -25,6 +25,7 @@ La configuración se lee desde `src/config/configuration.ts`. Confirma allí los
 - Configuración de aplicación/HTTP: puerto, entorno y orígenes CORS.
 - PostgreSQL: host, puerto, usuario, contraseña, nombre de base, SSL, sincronización y logging.
 - JWT: secreto de acceso, duración del access token, secreto de refresh y duración del refresh token.
+- Google Auth: `GOOGLE_CLIENT_ID` del cliente OAuth usado por el frontend.
 - Swagger: habilitado y ruta (`api/docs`).
 - Cloudinary: cloud name, API key, API secret y tamaño máximo de imagen, si se prueban endpoints multipart.
 
@@ -91,22 +92,22 @@ Realiza primero las pruebas públicas y después las protegidas. Mantén una hoj
 
 Usa valores únicos para evitar conflictos entre ejecuciones:
 
-| Dato | Valor sugerido |
-|---|---|
-| Nombre admin seed | El definido en el `.env`/seed |
-| Email CLIENT | `qa.client+20260902@example.com` |
-| Email TECHNICIAN | `qa.technician+20260902@example.com` |
-| Email solicitud | `qa.request+20260902@example.com` |
-| Teléfono | `+5491123456789` |
-| Contraseña | Una de al menos 8 caracteres, por ejemplo `QaPass2026!` |
-| Servicio | `Mantenimiento preventivo QA` |
-| Slug servicio | Se genera/normaliza según el servicio; usa la respuesta real |
-| Producto | `Filtro QA 2026` |
-| Slug producto | `filtro-qa-2026` |
-| Proyecto | `Instalación QA 2026` |
-| Slug proyecto | `instalacion-qa-2026` |
-| Mensaje | `Necesito una cotización para revisar el equipo del local.` |
-| Material | `{ "name": "Caño de cobre", "quantity": "10 m" }` |
+| Dato              | Valor sugerido                                               |
+| ----------------- | ------------------------------------------------------------ |
+| Nombre admin seed | El definido en el `.env`/seed                                |
+| Email CLIENT      | `qa.client+20260902@example.com`                             |
+| Email TECHNICIAN  | `qa.technician+20260902@example.com`                         |
+| Email solicitud   | `qa.request+20260902@example.com`                            |
+| Teléfono          | `+5491123456789`                                             |
+| Contraseña        | Una de al menos 8 caracteres, por ejemplo `QaPass2026!`      |
+| Servicio          | `Mantenimiento preventivo QA`                                |
+| Slug servicio     | Se genera/normaliza según el servicio; usa la respuesta real |
+| Producto          | `Filtro QA 2026`                                             |
+| Slug producto     | `filtro-qa-2026`                                             |
+| Proyecto          | `Instalación QA 2026`                                        |
+| Slug proyecto     | `instalacion-qa-2026`                                        |
+| Mensaje           | `Necesito una cotización para revisar el equipo del local.`  |
+| Material          | `{ "name": "Caño de cobre", "quantity": "10 m" }`            |
 
 Los valores de email, slug y key deben ser nuevos en cada corrida o debes borrar/restaurar los datos de prueba según corresponda. **Si un endpoint devuelve un ID UUID, guardá este ID porque lo vamos a necesitar en los siguientes endpoints.**
 
@@ -156,6 +157,25 @@ Guarda `id`. Espera email, nombre, rol, fecha y mensaje de registro; la contrase
 ```
 
 Guarda `accessToken` y `refreshToken`. Autoriza Swagger con el access token. Prueba también contraseña incorrecta: debe devolver `401`.
+
+#### Test A2.1 - Login con Google
+
+`POST /api/v1/auth/google` — público, `200`.
+
+```json
+{
+  "idToken": "PEGAR_ID_TOKEN_REAL_DE_GOOGLE"
+}
+```
+
+Esperado:
+
+- Si el token de Google es válido y pertenece al `GOOGLE_CLIENT_ID` configurado, devuelve `user`, `token` y `refreshToken`.
+- Si el email no existe, crea un usuario `CLIENT` con `authProvider = GOOGLE`, `password = null` y crea su perfil `Client`.
+- Si el usuario Google ya existe y es `CLIENT`, inicia sesión y emite un nuevo par de tokens.
+- Si el token está vencido, alterado, no pertenece al cliente configurado o Google no confirma el email, devuelve `400`.
+
+Guarda `token` y `refreshToken`. Autoriza Swagger con el `token`.
 
 #### Test A3 - Refresh
 
@@ -411,9 +431,7 @@ Requiere `clientId` de perfil CLIENT. El `technicianId` es el ID del usuario con
 {
   "workDone": "Se realizó la revisión inicial.",
   "observations": "Continuar con medición en la próxima visita.",
-  "materials": [
-    { "name": "Caño de cobre", "quantity": "10 m" }
-  ]
+  "materials": [{ "name": "Caño de cobre", "quantity": "10 m" }]
 }
 ```
 

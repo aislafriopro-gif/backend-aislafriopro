@@ -4,12 +4,14 @@ import {
   UnauthorizedException,
   ConflictException,
   NotFoundException,
+  BadRequestException,
 } from '@nestjs/common';
 import { ConfigService } from '@nestjs/config';
 import { JwtService } from '@nestjs/jwt';
 import { InjectRepository } from '@nestjs/typeorm';
 import * as bcrypt from 'bcrypt';
-import { Repository } from 'typeorm';
+import { OAuth2Client } from 'google-auth-library';
+import { FindOptionsWhere, Repository } from 'typeorm';
 import type { ApplicationConfiguration } from '../config/configuration';
 import { SessionsService } from '../sessions/sessions.service';
 import { AuthProvider, User } from '../users/entities/user.entity';
@@ -28,9 +30,11 @@ const INVALID_CREDENTIALS_MESSAGE = 'Credenciales inválidas.';
 const INVALID_REFRESH_TOKEN_MESSAGE = 'Refresh token inválido.';
 const GOOGLE_ACCOUNT_LOCAL_LOGIN_MESSAGE =
   'Esta cuenta fue registrada con Google. Iniciá sesión con Google para continuar.';
+const INVALID_GOOGLE_TOKEN_MESSAGE = 'Token de Google inválido o expirado.';
 
 @Injectable()
 export class AuthService {
+  private readonly googleClient = new OAuth2Client();
   constructor(
     @InjectRepository(User)
     private readonly userRepository: Repository<User>,
@@ -180,6 +184,82 @@ export class AuthService {
     };
   }
 
+  async authenticateWithGoogle(
+    idToken: string,
+    metadata: SessionMetadata,
+  ): Promise<LoginResponseDto> {
+    const googlePayload = await this.verifyGoogleIdToken(idToken);
+    const providerId = googlePayload.sub;
+    const normalizedEmail = googlePayload.email.trim().toLowerCase();
+    const name = googlePayload.name?.trim() || normalizedEmail;
+
+    let user = await this.userRepository.findOne({
+      where: [
+        {
+          authProvider: AuthProvider.GOOGLE,
+          providerId,
+        },
+        {
+          email: normalizedEmail,
+        },
+      ] satisfies FindOptionsWhere<User>[],
+      relations: {
+        role: true,
+      },
+    });
+
+    if (!user) {
+      const clientRole = await this.roleRepository.findOneBy({
+        name: RoleName.CLIENT,
+      });
+
+      if (!clientRole) {
+        throw new NotFoundException('Role CLIENT not found in catalog');
+      }
+
+      user = await this.userRepository.manager.transaction(async (manager) => {
+        const createdUser = manager.create(User, {
+          name,
+          email: normalizedEmail,
+          password: null,
+          authProvider: AuthProvider.GOOGLE,
+          providerId,
+          role: clientRole,
+        });
+
+        const savedUser = await manager.save(User, createdUser);
+
+        const client = manager.create(Client, {
+          userId: savedUser.id,
+          user: savedUser,
+        });
+
+        await manager.save(Client, client);
+
+        return savedUser;
+      });
+
+      user.role = clientRole;
+    }
+
+    if (user.role.name !== RoleName.CLIENT) {
+      throw new BadRequestException(INVALID_GOOGLE_TOKEN_MESSAGE);
+    }
+
+    const tokenPair = await this.issueTokenPair(user, metadata);
+
+    return {
+      user: {
+        id: user.id,
+        name: user.name,
+        email: user.email,
+        role: user.role.name,
+      },
+      token: tokenPair.accessToken,
+      refreshToken: tokenPair.refreshToken,
+    };
+  }
+
   async refresh(
     refreshToken: string,
     metadata: SessionMetadata,
@@ -212,6 +292,37 @@ export class AuthService {
     }
 
     await this.sessionsService.revokeSession(session);
+  }
+
+  private async verifyGoogleIdToken(idToken: string): Promise<{
+    sub: string;
+    email: string;
+    name?: string;
+  }> {
+    try {
+      const clientId = this.configService.getOrThrow('google.clientId', {
+        infer: true,
+      });
+
+      const ticket = await this.googleClient.verifyIdToken({
+        idToken,
+        audience: clientId,
+      });
+
+      const payload = ticket.getPayload();
+
+      if (!payload?.sub || !payload.email || payload.email_verified !== true) {
+        throw new Error('Invalid Google token payload.');
+      }
+
+      return {
+        sub: payload.sub,
+        email: payload.email,
+        name: payload.name,
+      };
+    } catch {
+      throw new BadRequestException(INVALID_GOOGLE_TOKEN_MESSAGE);
+    }
   }
 
   private async issueTokenPair(

@@ -3,6 +3,7 @@ import { AuthService } from './auth.service';
 import { Request } from 'express';
 import { RegisterDto } from './dto/register.dto';
 import { LoginDto } from './dto/login.dto';
+import { GoogleAuthDto } from './dto/google-auth.dto';
 import { RoleName } from '../roles/entities/roles.entity';
 
 describe('AuthController', () => {
@@ -17,6 +18,7 @@ describe('AuthController', () => {
         role: 'CLIENT';
       };
       token: string;
+      refreshToken: string;
     }>,
     [RegisterDto, { ipAddress: string; userAgent: string }]
   >;
@@ -32,6 +34,19 @@ describe('AuthController', () => {
     }>,
     [LoginDto, { ipAddress: string; userAgent: string }]
   >;
+  let authenticateWithGoogleMock: jest.Mock<
+    Promise<{
+      user: {
+        id: string;
+        name: string;
+        email: string;
+        role: RoleName;
+      };
+      token: string;
+      refreshToken: string;
+    }>,
+    [string, { ipAddress: string; userAgent: string }]
+  >;
 
   beforeEach(() => {
     logoutMock = jest.fn<Promise<void>, [string]>().mockResolvedValue();
@@ -46,6 +61,7 @@ describe('AuthController', () => {
             role: 'CLIENT';
           };
           token: string;
+          refreshToken: string;
         }>,
         [RegisterDto, { ipAddress: string; userAgent: string }]
       >()
@@ -57,6 +73,7 @@ describe('AuthController', () => {
           role: 'CLIENT',
         },
         token: 'jwt-access-token',
+        refreshToken: 'jwt-refresh-token',
       });
 
     loginMock = jest
@@ -69,6 +86,7 @@ describe('AuthController', () => {
             role: RoleName;
           };
           token: string;
+          refreshToken: string;
         }>,
         [LoginDto, { ipAddress: string; userAgent: string }]
       >()
@@ -80,12 +98,39 @@ describe('AuthController', () => {
           role: RoleName.CLIENT,
         },
         token: 'jwt-access-token',
+        refreshToken: 'jwt-refresh-token',
+      });
+
+    authenticateWithGoogleMock = jest
+      .fn<
+        Promise<{
+          user: {
+            id: string;
+            name: string;
+            email: string;
+            role: RoleName;
+          };
+          token: string;
+          refreshToken: string;
+        }>,
+        [string, { ipAddress: string; userAgent: string }]
+      >()
+      .mockResolvedValue({
+        user: {
+          id: 'google-user-id',
+          name: 'Usuario Google',
+          email: 'usuario@gmail.com',
+          role: RoleName.CLIENT,
+        },
+        token: 'jwt-access-token',
+        refreshToken: 'jwt-refresh-token',
       });
 
     const authService = {
       logout: logoutMock,
       register: registerMock,
       login: loginMock,
+      authenticateWithGoogle: authenticateWithGoogleMock,
     } as unknown as AuthService;
 
     authController = new AuthController(authService);
@@ -121,6 +166,7 @@ describe('AuthController', () => {
         role: 'CLIENT',
       },
       token: 'jwt-access-token',
+      refreshToken: 'jwt-refresh-token',
     });
   });
 
@@ -152,6 +198,38 @@ describe('AuthController', () => {
         role: RoleName.CLIENT,
       },
       token: 'jwt-access-token',
+      refreshToken: 'jwt-refresh-token',
+    });
+  });
+
+  it('debe autenticar con Google y devolver tokens', async () => {
+    const dto: GoogleAuthDto = {
+      idToken: 'google-id-token',
+    };
+
+    const req = {
+      ip: '127.0.0.1',
+      headers: {
+        'user-agent': 'Jest',
+      },
+    } as Request;
+
+    const result = await authController.google(dto, req);
+
+    expect(authenticateWithGoogleMock).toHaveBeenCalledWith('google-id-token', {
+      ipAddress: '127.0.0.1',
+      userAgent: 'Jest',
+    });
+
+    expect(result).toEqual({
+      user: {
+        id: 'google-user-id',
+        name: 'Usuario Google',
+        email: 'usuario@gmail.com',
+        role: RoleName.CLIENT,
+      },
+      token: 'jwt-access-token',
+      refreshToken: 'jwt-refresh-token',
     });
   });
 

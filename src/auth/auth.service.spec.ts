@@ -1,4 +1,5 @@
 import {
+  BadRequestException,
   ConflictException,
   NotFoundException,
   UnauthorizedException,
@@ -21,9 +22,21 @@ import { RefreshJwtPayload } from './interfaces/refresh-jwt-payload.interface';
 import { SessionMetadata } from './interfaces/session-metadata.interface';
 import { Role } from '../roles/entities/roles.entity';
 
+const mockVerifyIdToken = jest.fn<
+  Promise<{ getPayload: () => unknown }>,
+  [unknown]
+>();
+
+jest.mock('google-auth-library', () => ({
+  OAuth2Client: jest.fn().mockImplementation(() => ({
+    verifyIdToken: mockVerifyIdToken,
+  })),
+}));
+
 const REFRESH_SECRET = 'test-refresh-secret-with-at-least-32-characters';
 const REFRESH_EXPIRES_IN_SECONDS = 604800;
 const RAW_REFRESH_TOKEN = 'jwt-refresh-token';
+const GOOGLE_CLIENT_ID = 'google-client-id.apps.googleusercontent.com';
 
 type FindOneUser = Repository<User>['findOne'];
 
@@ -43,7 +56,7 @@ type VerifyRefreshToken = (
 ) => Promise<RefreshJwtPayload>;
 
 type GetConfigValue = (
-  key: 'jwt.refreshSecret' | 'jwt.refreshExpiresInSeconds',
+  key: 'jwt.refreshSecret' | 'jwt.refreshExpiresInSeconds' | 'google.clientId',
   options: {
     infer: true;
   },
@@ -104,6 +117,10 @@ describe('AuthService', () => {
         return REFRESH_SECRET;
       }
 
+      if (key === 'google.clientId') {
+        return GOOGLE_CLIENT_ID;
+      }
+
       return REFRESH_EXPIRES_IN_SECONDS;
     });
 
@@ -145,6 +162,8 @@ describe('AuthService', () => {
       findActiveByRefreshToken: findActiveByRefreshTokenMock,
       revokeSession: revokeSessionMock,
     } as unknown as SessionsService;
+
+    mockVerifyIdToken.mockReset();
 
     authService = new AuthService(
       userRepository,
@@ -545,6 +564,183 @@ describe('AuthService', () => {
       RAW_REFRESH_TOKEN,
     );
     expect(revokeSessionMock).not.toHaveBeenCalled();
+  });
+
+  describe('authenticateWithGoogle', () => {
+    const googlePayload = {
+      sub: 'google-user-id',
+      email: 'Usuario@Gmail.com',
+      email_verified: true,
+      name: 'Usuario Google',
+    };
+
+    it('debe autenticar una cuenta Google CLIENT existente', async () => {
+      const now = 1_800_000_000_000;
+      jest.spyOn(Date, 'now').mockReturnValue(now);
+
+      const user = buildUser({
+        email: 'usuario@gmail.com',
+        name: 'Usuario Google',
+        password: null,
+        authProvider: AuthProvider.GOOGLE,
+        providerId: 'google-user-id',
+        role: {
+          id: 'client-role-id',
+          name: RoleName.CLIENT,
+          users: [],
+          createdAt: new Date(),
+        },
+      });
+
+      mockVerifyIdToken.mockResolvedValue({
+        getPayload: () => googlePayload,
+      });
+
+      findOneMock.mockResolvedValue(user);
+
+      signAsyncMock
+        .mockResolvedValueOnce('jwt-access-token')
+        .mockResolvedValueOnce(RAW_REFRESH_TOKEN);
+
+      createSessionMock.mockResolvedValue(buildSession({ user }));
+
+      const result = await authService.authenticateWithGoogle(
+        'valid-google-token',
+        metadata,
+      );
+
+      expect(mockVerifyIdToken).toHaveBeenCalledWith({
+        idToken: 'valid-google-token',
+        audience: GOOGLE_CLIENT_ID,
+      });
+
+      expect(result).toEqual({
+        user: {
+          id: user.id,
+          name: user.name,
+          email: user.email,
+          role: RoleName.CLIENT,
+        },
+        token: 'jwt-access-token',
+        refreshToken: RAW_REFRESH_TOKEN,
+      });
+
+      expect(createSessionMock).toHaveBeenCalledWith({
+        user,
+        refreshToken: RAW_REFRESH_TOKEN,
+        expiresAt: new Date(now + REFRESH_EXPIRES_IN_SECONDS * 1000),
+        ipAddress: metadata.ipAddress,
+        userAgent: metadata.userAgent,
+      });
+    });
+
+    it('debe crear usuario CLIENT y perfil Client si no existe', async () => {
+      const clientRole = {
+        id: 'client-role-id',
+        name: RoleName.CLIENT,
+        users: [],
+        createdAt: new Date(),
+      } as Role;
+
+      const savedUser = buildUser({
+        id: 'new-google-user-id',
+        name: 'Usuario Google',
+        email: 'usuario@gmail.com',
+        password: null,
+        authProvider: AuthProvider.GOOGLE,
+        providerId: 'google-user-id',
+        role: clientRole,
+      });
+
+      mockVerifyIdToken.mockResolvedValue({
+        getPayload: () => googlePayload,
+      });
+
+      findOneMock.mockResolvedValue(null);
+      findOneByRoleMock.mockResolvedValue(clientRole);
+
+      transactionMock.mockImplementation(async (callback) => {
+        const manager: TransactionManagerMock = {
+          create: jest.fn<unknown, [unknown, unknown]>((_entity, data) => data),
+          save: jest.fn<Promise<unknown>, [unknown, unknown]>(
+            (entity, data) => {
+              if (
+                entity === User &&
+                typeof data === 'object' &&
+                data !== null
+              ) {
+                return Promise.resolve({ ...data, id: savedUser.id });
+              }
+
+              return Promise.resolve(data);
+            },
+          ),
+        };
+
+        return callback(manager);
+      });
+
+      signAsyncMock
+        .mockResolvedValueOnce('jwt-access-token')
+        .mockResolvedValueOnce(RAW_REFRESH_TOKEN);
+
+      createSessionMock.mockResolvedValue(buildSession({ user: savedUser }));
+
+      const result = await authService.authenticateWithGoogle(
+        'valid-google-token',
+        metadata,
+      );
+
+      expect(findOneByRoleMock).toHaveBeenCalledWith({ name: RoleName.CLIENT });
+      expect(transactionMock).toHaveBeenCalled();
+
+      expect(result).toEqual({
+        user: {
+          id: savedUser.id,
+          name: savedUser.name,
+          email: savedUser.email,
+          role: RoleName.CLIENT,
+        },
+        token: 'jwt-access-token',
+        refreshToken: RAW_REFRESH_TOKEN,
+      });
+    });
+
+    it('debe rechazar un token de Google inválido', async () => {
+      mockVerifyIdToken.mockRejectedValue(new Error('invalid token'));
+
+      await expect(
+        authService.authenticateWithGoogle('invalid-google-token', metadata),
+      ).rejects.toThrow(BadRequestException);
+
+      await expect(
+        authService.authenticateWithGoogle('invalid-google-token', metadata),
+      ).rejects.toThrow('Token de Google inválido o expirado.');
+    });
+
+    it('debe rechazar Google Auth para cuentas internas que no son CLIENT', async () => {
+      mockVerifyIdToken.mockResolvedValue({
+        getPayload: () => googlePayload,
+      });
+
+      findOneMock.mockResolvedValue(
+        buildUser({
+          email: 'usuario@gmail.com',
+          authProvider: AuthProvider.GOOGLE,
+          providerId: 'google-user-id',
+          role: {
+            id: 'admin-role-id',
+            name: RoleName.ADMIN,
+            users: [],
+            createdAt: new Date(),
+          },
+        }),
+      );
+
+      await expect(
+        authService.authenticateWithGoogle('valid-google-token', metadata),
+      ).rejects.toThrow('Token de Google inválido o expirado.');
+    });
   });
 
   describe('register', () => {

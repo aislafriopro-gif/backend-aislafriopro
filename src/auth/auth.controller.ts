@@ -17,6 +17,7 @@ import type { TokenPairResponse } from './interfaces/token-pair-response.interfa
 import { RegisterDto } from './dto/register.dto';
 import { RegisterResponseDto } from './dto/register-response.dto';
 import { LoginResponseDto } from './dto/login-response.dto';
+import { GoogleAuthDto } from './dto/google-auth.dto';
 
 @ApiTags('Auth')
 @Controller('auth')
@@ -64,6 +65,34 @@ export class AuthController {
       userAgent: (req.headers['user-agent'] as string) ?? '',
     };
     return this.authService.login(loginDto, metadata);
+  }
+
+  @Public()
+  @Post('google')
+  @HttpCode(HttpStatus.OK)
+  @ApiOperation({ summary: 'Iniciar sesión o registrar usuario con Google' })
+  @ApiResponse({
+    status: 200,
+    description: 'Autenticación con Google exitosa',
+    type: LoginResponseDto,
+  })
+  @ApiResponse({
+    status: 400,
+    description: 'Token de Google inválido o expirado',
+  })
+  async google(
+    @Body() googleAuthDto: GoogleAuthDto,
+    @Req() req: Request,
+  ): Promise<LoginResponseDto> {
+    const metadata: SessionMetadata = {
+      ipAddress: req.ip ?? '',
+      userAgent: (req.headers['user-agent'] as string) ?? '',
+    };
+
+    return this.authService.authenticateWithGoogle(
+      googleAuthDto.idToken,
+      metadata,
+    );
   }
 
   @Public()
