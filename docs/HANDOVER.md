@@ -9,7 +9,7 @@ El backend de Aisla Frío Pro está construido con NestJS, TypeScript, PostgreSQ
 - Framework: NestJS + TypeScript.
 - Base de datos: PostgreSQL.
 - ORM: TypeORM con migraciones.
-- Autenticación: JWT + refresh token.
+- Autenticación: JWT + refresh token, con soporte para login local y Google OAuth.
 - Media: Cloudinary centralizado en el módulo `media`.
 - Documentación: Swagger/OpenAPI.
 - Seguridad: Helmet, CORS configurado por entorno, rate limiting con Throttler.
@@ -20,7 +20,7 @@ El backend de Aisla Frío Pro está construido con NestJS, TypeScript, PostgreSQ
 - Health check: `GET /api/v1/health`.
 - Swagger: configurable con `SWAGGER_PATH`, por defecto `/api/docs`.
 - La mayoría de endpoints privados requieren JWT Bearer token.
-- Los endpoints públicos usan el decorador `@Public()`.
+- Google Auth: `POST /api/v1/auth/google`, público, recibe `{ "idToken": "string" }` y devuelve `user`, `token` y `refreshToken`.
 
 ## Variables de Entorno
 
@@ -52,6 +52,8 @@ JWT_EXPIRES_IN=15m
 JWT_REFRESH_SECRET=
 JWT_REFRESH_EXPIRES_IN_SECONDS=604800
 
+GOOGLE_CLIENT_ID=
+
 CLOUDINARY_URL=
 CLOUDINARY_MAX_IMAGE_SIZE_BYTES=5242880
 ```
@@ -62,6 +64,7 @@ CLOUDINARY_MAX_IMAGE_SIZE_BYTES=5242880
 - En producción `DB_SYNCHRONIZE` debe mantenerse en `false`.
 - En producción `DB_SSL` debe configurarse según el proveedor de base de datos.
 - Cloudinary puede configurarse con `CLOUDINARY_URL` o con `CLOUDINARY_CLOUD_NAME`, `CLOUDINARY_API_KEY` y `CLOUDINARY_API_SECRET`.
+- `GOOGLE_CLIENT_ID` debe coincidir con el cliente OAuth usado por el frontend; el backend lo usa para validar el `audience` del `idToken`.
 
 ## Deploy
 

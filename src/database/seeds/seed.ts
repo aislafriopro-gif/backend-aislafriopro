@@ -4,6 +4,11 @@ import dataSource from '../data-source';
 import { Role, RoleName } from '../../roles/entities/roles.entity';
 import { AuthProvider, User } from '../../users/entities/user.entity';
 import { Client } from '../../clients/entities/client.entity';
+import { Service } from '../../services/entities/service.entity';
+import { Product, ProductStatus } from '../../products/entities/product.entity';
+import { Project } from '../../projects/entities/project.entity';
+import { SiteSetting, SiteSettingType } from '../../site-settings/entities/site-setting.entity';
+import { Faq } from '../../faqs/entities/faq.entity';
 
 const DEFAULT_PASSWORD = 'PassWord23!';
 const BCRYPT_SALT_ROUNDS = 10;
@@ -23,22 +28,16 @@ const ROLES_TO_SEED: SeedRoleDefinition[] = [
     fullName: 'Admin Aislafríopro',
   },
   {
-    name: RoleName.USER,
-    emailEnv: 'SEED_USER_EMAIL',
-    defaultEmail: 'user@aislafriopro.com',
-    fullName: 'User Aislafríopro',
-  },
-  {
     name: RoleName.CLIENT,
     emailEnv: 'SEED_CLIENT_EMAIL',
     defaultEmail: 'client@aislafriopro.com',
-    fullName: 'Client Aislafríopro',
+    fullName: 'Cliente Aislafríopro',
   },
   {
     name: RoleName.TECHNICIAN,
     emailEnv: 'SEED_TECHNICIAN_EMAIL',
     defaultEmail: 'technician@aislafriopro.com',
-    fullName: 'Technician Aislafríopro',
+    fullName: 'Técnico Aislafríopro',
   },
 ];
 
@@ -127,23 +126,251 @@ async function seedUsers(
   }
 }
 
+// ============================================================================
+// DATOS DE EJEMPLO (OPCIONALES PARA PRODUCCIÓN - COMENTAR SI NO LOS NECESITA)
+// ============================================================================
+
+async function seedServices(
+  serviceRepository: ReturnType<typeof dataSource.getRepository<Service>>,
+): Promise<void> {
+  console.log('\n[SEED] === DATOS DE EJEMPLO: SERVICIOS ===');
+
+  const exampleServices = [
+    {
+      name: 'Aislación Térmica',
+      slug: 'aislacion-termica',
+      description: 'Instalación de sistemas de aislación térmica para reducir consumo energético.',
+      shortDescription: 'Aislación térmica profesional',
+      isActive: true,
+      displayOrder: 1,
+    },
+    {
+      name: 'Aislación Acústica',
+      slug: 'aislacion-acustica',
+      description: 'Soluciones de aislación acústica para espacios residenciales y comerciales.',
+      shortDescription: 'Control del ruido',
+      isActive: true,
+      displayOrder: 2,
+    },
+    {
+      name: 'Mantenimiento',
+      slug: 'mantenimiento',
+      description: 'Servicios de mantenimiento preventivo y correctivo de sistemas de aislación.',
+      shortDescription: 'Mantenimiento y reparación',
+      isActive: true,
+      displayOrder: 3,
+    },
+  ];
+
+  for (const serviceData of exampleServices) {
+    const existing = await serviceRepository.findOneBy({ slug: serviceData.slug });
+
+    if (existing) {
+      console.log(`[SEED] Servicio "${serviceData.name}" ya existe. Omitiendo.`);
+    } else {
+      const service = serviceRepository.create(serviceData);
+      await serviceRepository.save(service);
+      console.log(`[SEED] Servicio "${serviceData.name}" creado.`);
+    }
+  }
+}
+
+async function seedProducts(
+  productRepository: ReturnType<typeof dataSource.getRepository<Product>>,
+): Promise<void> {
+  console.log('\n[SEED] === DATOS DE EJEMPLO: PRODUCTOS ===');
+
+  const exampleProducts = [
+    {
+      name: 'Panel Aislante XPS 50mm',
+      slug: 'panel-aislante-xps-50mm',
+      description: 'Paneles de espuma rígida XPS de 50mm de espesor, resistentes a la humedad y con excelente resistencia térmica.',
+      price: 2500.00,
+      status: ProductStatus.ACTIVE,
+      isPublished: true,
+    },
+    {
+      name: 'Lana Mineral 100mm',
+      slug: 'lana-mineral-100mm',
+      description: 'Rollos de lana mineral de 100mm, ideales para aislación térmica y acústica en techos y paredes.',
+      price: 1850.50,
+      status: ProductStatus.ACTIVE,
+      isPublished: true,
+    },
+    {
+      name: 'Membrana Impermeable',
+      slug: 'membrana-impermeable',
+      description: 'Membrana impermeabilizante de alta densidad para protección contra infiltraciones.',
+      price: 3200.00,
+      status: ProductStatus.ACTIVE,
+      isPublished: true,
+    },
+  ];
+
+  for (const productData of exampleProducts) {
+    const existing = await productRepository.findOneBy({ slug: productData.slug });
+
+    if (existing) {
+      console.log(`[SEED] Producto "${productData.name}" ya existe. Omitiendo.`);
+    } else {
+      const product = productRepository.create(productData);
+      await productRepository.save(product);
+      console.log(`[SEED] Producto "${productData.name}" creado.`);
+    }
+  }
+}
+
+async function seedProjects(
+  projectRepository: ReturnType<typeof dataSource.getRepository<Project>>,
+): Promise<void> {
+  console.log('\n[SEED] === DATOS DE EJEMPLO: PROYECTOS ===');
+
+  const exampleProjects = [
+    {
+      title: 'Aislación Térmica - Edificio Comercial Centro',
+      slug: 'aislacion-termica-edificio-comercial-centro',
+      description: 'Proyecto de aislación térmica integral en edificio de oficinas en zona central de la ciudad.',
+      location: 'Zona Centro',
+      completionDate: new Date('2026-06-30'),
+      clientDisplayName: 'Empresa XYZ S.A.',
+    },
+    {
+      title: 'Aislación Acústica - Estudio de Grabación',
+      slug: 'aislacion-acustica-estudio-grabacion',
+      description: 'Implementación de sistema de aislación acústica profesional para estudio de grabación.',
+      location: 'Barrio Tecnológico',
+      completionDate: new Date('2026-05-15'),
+      clientDisplayName: 'Audio Pro Estudio',
+    },
+  ];
+
+  for (const projectData of exampleProjects) {
+    const existing = await projectRepository.findOneBy({ slug: projectData.slug });
+
+    if (existing) {
+      console.log(`[SEED] Proyecto "${projectData.title}" ya existe. Omitiendo.`);
+    } else {
+      const project = projectRepository.create(projectData);
+      await projectRepository.save(project);
+      console.log(`[SEED] Proyecto "${projectData.title}" creado.`);
+    }
+  }
+}
+
+async function seedSiteSettings(
+  siteSettingRepository: ReturnType<typeof dataSource.getRepository<SiteSetting>>,
+): Promise<void> {
+  console.log('\n[SEED] === CONFIGURACIÓN DEL SITIO ===');
+
+  const exampleSettings = [
+    {
+      key: 'site_name',
+      value: 'AislaFrío Pro',
+      type: SiteSettingType.STRING,
+      description: 'Nombre del sitio web',
+    },
+    {
+      key: 'site_phone',
+      value: '+54 11 1234 5678',
+      type: SiteSettingType.STRING,
+      description: 'Teléfono de contacto principal',
+    },
+    {
+      key: 'site_email',
+      value: 'contacto@aislafriopro.com',
+      type: SiteSettingType.STRING,
+      description: 'Email de contacto principal',
+    },
+  ];
+
+  for (const settingData of exampleSettings) {
+    const existing = await siteSettingRepository.findOneBy({ key: settingData.key });
+
+    if (existing) {
+      console.log(`[SEED] Configuración "${settingData.key}" ya existe. Omitiendo.`);
+    } else {
+      const setting = siteSettingRepository.create(settingData);
+      await siteSettingRepository.save(setting);
+      console.log(`[SEED] Configuración "${settingData.key}" creada.`);
+    }
+  }
+}
+
+async function seedFaqs(
+  faqRepository: ReturnType<typeof dataSource.getRepository<Faq>>,
+): Promise<void> {
+  console.log('\n[SEED] === PREGUNTAS FRECUENTES ===');
+
+  const exampleFaqs = [
+    {
+      question: '¿Cuáles son los beneficios de la aislación térmica?',
+      answer: 'La aislación térmica reduce significativamente el consumo de energía para calefacción y refrigeración, disminuye costos operativos y mejora el confort interior.',
+      displayOrder: 1,
+      isActive: true,
+    },
+    {
+      question: '¿Qué materiales utilizan para la aislación?',
+      answer: 'Utilizamos materiales de alta calidad como espuma XPS, lana mineral y membranas impermeabilizantes, seleccionados según las necesidades específicas de cada proyecto.',
+      displayOrder: 2,
+      isActive: true,
+    },
+    {
+      question: '¿Cuánto tiempo tarda una instalación típica?',
+      answer: 'El tiempo varía según el tamaño y complejidad del proyecto. Generalmente, desde una evaluación inicial podemos estimar el cronograma de instalación con precisión.',
+      displayOrder: 3,
+      isActive: true,
+    },
+  ];
+
+  for (const faqData of exampleFaqs) {
+    const existing = await faqRepository.findOneBy({
+      question: faqData.question,
+    });
+
+    if (existing) {
+      console.log(`[SEED] FAQ "${faqData.question}" ya existe. Omitiendo.`);
+    } else {
+      const faq = faqRepository.create(faqData);
+      await faqRepository.save(faq);
+      console.log(`[SEED] FAQ creada: "${faqData.question}".`);
+    }
+  }
+}
+
+// ============================================================================
+// FIN DATOS DE EJEMPLO
+// ============================================================================
+
 async function main(): Promise<void> {
-  console.log('[SEED] Iniciando seed de roles y usuarios...');
+  console.log('[SEED] Iniciando seed de roles, usuarios y datos de ejemplo...\n');
 
   try {
     await dataSource.initialize();
-    console.log('[SEED] Conexión a la base de datos establecida.');
+    console.log('[SEED] Conexión a la base de datos establecida.\n');
 
     const roleRepository = dataSource.getRepository(Role);
     const userRepository = dataSource.getRepository(User);
     const clientRepository = dataSource.getRepository(Client);
+    const serviceRepository = dataSource.getRepository(Service);
+    const productRepository = dataSource.getRepository(Product);
+    const projectRepository = dataSource.getRepository(Project);
+    const siteSettingRepository = dataSource.getRepository(SiteSetting);
+    const faqRepository = dataSource.getRepository(Faq);
 
+    // Seed núcleos del sistema
     const rolesMap = await seedRoles(roleRepository);
     await seedUsers(userRepository, clientRepository, rolesMap);
 
-    console.log('[SEED] Seed finalizado correctamente.');
+    // Seed de datos de ejemplo (opcionales para producción)
+    await seedServices(serviceRepository);
+    await seedProducts(productRepository);
+    await seedProjects(projectRepository);
+    await seedSiteSettings(siteSettingRepository);
+    await seedFaqs(faqRepository);
+
+    console.log('\n[SEED] ✓ Seed finalizado correctamente.');
   } catch (error) {
-    console.error('[SEED] Error durante el seed:', error);
+    console.error('\n[SEED] ✗ Error durante el seed:', error);
     process.exit(1);
   } finally {
     if (dataSource.isInitialized) {
