@@ -37,6 +37,7 @@ const buildPaginatedResponse = <T>(
   page,
   limit,
   totalPages: total === 0 ? 0 : Math.ceil(total / limit),
+  hasMore: page * limit < total,
 });
 
 describe('FaqsController', () => {

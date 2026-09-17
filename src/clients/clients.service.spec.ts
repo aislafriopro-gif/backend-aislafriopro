@@ -6,6 +6,7 @@ import {
 } from '../quote-requests/entities/quote-request.entity';
 import { Service } from '../services/entities/service.entity';
 import { User, UserStatus } from '../users/entities/user.entity';
+import { WorkOrder } from '../work-orders/entities/work-order.entity';
 import { Client } from './entities/client.entity';
 import { ClientsService } from './clients.service';
 import { PaginationParamsDto } from '../common/pagination';
@@ -16,6 +17,7 @@ describe('ClientsService', () => {
   let findOneClientMock: jest.Mock<Promise<Client | null>, [unknown]>;
   let findAndCountClientMock: jest.Mock<Promise<[Client[], number]>, [unknown]>;
   let findQuoteRequestsMock: jest.Mock<Promise<QuoteRequest[]>, [unknown]>;
+  let findWorkOrdersMock: jest.Mock<Promise<WorkOrder[]>, [unknown]>;
 
   const buildUser = (overrides: Partial<User> = {}): User =>
     ({
@@ -55,6 +57,9 @@ describe('ClientsService', () => {
     findOneClientMock = jest.fn<Promise<Client | null>, [unknown]>();
     findAndCountClientMock = jest.fn<Promise<[Client[], number]>, [unknown]>();
     findQuoteRequestsMock = jest.fn<Promise<QuoteRequest[]>, [unknown]>();
+    findWorkOrdersMock = jest
+      .fn<Promise<WorkOrder[]>, [unknown]>()
+      .mockResolvedValue([]);
 
     const clientRepository = {
       findOne: findOneClientMock,
@@ -65,9 +70,14 @@ describe('ClientsService', () => {
       find: findQuoteRequestsMock,
     } as unknown as Repository<QuoteRequest>;
 
+    const workOrderRepository = {
+      find: findWorkOrdersMock,
+    } as unknown as Repository<WorkOrder>;
+
     clientsService = new ClientsService(
       clientRepository,
       quoteRequestRepository,
+      workOrderRepository,
     );
   });
 
@@ -136,6 +146,7 @@ describe('ClientsService', () => {
       page: 1,
       limit: 10,
       totalPages: 1,
+      hasMore: false,
     });
   });
 

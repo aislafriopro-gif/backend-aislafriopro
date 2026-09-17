@@ -8,8 +8,9 @@ import { PaginatedResponse } from '../common/pagination';
 import { CloudinaryService } from '../media/cloudinary.service';
 import { Media } from '../media/entities/media.entity';
 import { Service } from '../services/entities/service.entity';
-import { User, UserStatus } from '../users/entities/user.entity';
+import { AuthProvider, User, UserStatus } from '../users/entities/user.entity';
 import { RoleName } from '../roles/entities/roles.entity';
+import { Client } from '../clients/entities/client.entity';
 import { CreateProjectDto } from './dto/create-project.dto';
 import { FindProjectsQueryDto } from './dto/find-projects-query.dto';
 import { UpdateProjectDto } from './dto/update-project.dto';
@@ -58,6 +59,8 @@ const buildUser = (overrides: Partial<User> = {}): User => ({
   name: 'Cliente Test',
   email: 'cliente@test.com',
   password: 'hashedpassword',
+  authProvider: AuthProvider.LOCAL,
+  providerId: null,
   phone: null,
   status: UserStatus.ACTIVE,
   lastLoginAt: null,
@@ -109,6 +112,23 @@ const buildPaginatedResponse = <T>(
   page,
   limit,
   totalPages: total === 0 ? 0 : Math.ceil(total / limit),
+  hasMore: page * limit < total,
+});
+
+const buildPublicProjectResponse = (project: Project) => ({
+  id: project.id,
+  title: project.title,
+  slug: project.slug,
+  description: project.description,
+  location: project.location,
+  completionDate: project.completionDate,
+  clientDisplayName: project.clientDisplayName,
+  services: project.services,
+  coverImage: null,
+  beforeImage: null,
+  afterImage: null,
+  createdAt: project.createdAt,
+  updatedAt: project.updatedAt,
 });
 
 describe('ProjectsService', () => {
@@ -135,6 +155,9 @@ describe('ProjectsService', () => {
   let mediaRepository: {
     findOne: jest.Mock<Promise<Media | null>, [unknown]>;
     find: jest.Mock<Promise<Media[]>, [unknown]>;
+  };
+  let clientRepository: {
+    findOne: jest.Mock<Promise<Client | null>, [unknown]>;
   };
   let cloudinaryService: {
     uploadImage: jest.Mock<
@@ -163,7 +186,10 @@ describe('ProjectsService', () => {
       findOne: jest.fn<Promise<Project | null>, [unknown]>(),
       findOneOrFail: jest
         .fn<Promise<Project>, [unknown]>()
-        .mockResolvedValue(buildProject()),
+        .mockImplementation(async () => {
+          const created = projectRepository.create.mock.results.at(-1)?.value;
+          return created ?? buildProject();
+        }),
       softDelete: jest
         .fn<Promise<unknown>, [string]>()
         .mockResolvedValue({ affected: 1 }),
@@ -177,6 +203,10 @@ describe('ProjectsService', () => {
       findOne: jest
         .fn<Promise<User | null>, [unknown]>()
         .mockResolvedValue(null),
+    };
+
+    clientRepository = {
+      findOne: jest.fn<Promise<Client | null>, [unknown]>(),
     };
 
     projectImageRepository = {
@@ -204,6 +234,7 @@ describe('ProjectsService', () => {
       projectRepository as unknown as Repository<Project>,
       serviceRepository as unknown as Repository<Service>,
       userRepository as unknown as Repository<User>,
+      clientRepository as unknown as Repository<Client>,
       projectImageRepository as unknown as Repository<ProjectImage>,
       mediaRepository as unknown as Repository<Media>,
       cloudinaryService as unknown as CloudinaryService,
@@ -304,13 +335,17 @@ describe('ProjectsService', () => {
         clientId: 'u1a2b3c4-d5e6-7890-abcd-ef1234567890',
       };
       const user = buildUser();
-      userRepository.findOne.mockResolvedValue(user);
+      clientRepository.findOne.mockResolvedValue({
+        id: dto.clientId!,
+        user,
+      } as Client);
 
       const result = await projectsService.create(dto);
 
-      expect(userRepository.findOne).toHaveBeenCalledWith({
+      expect(clientRepository.findOne).toHaveBeenCalledWith({
         where: { id: dto.clientId },
         withDeleted: true,
+        relations: ['user'],
       });
       expect(result.clientId).toBe(dto.clientId);
     });
@@ -341,7 +376,10 @@ describe('ProjectsService', () => {
         clientId: 'u1a2b3c4-d5e6-7890-abcd-ef1234567890',
       };
       const user = buildUser({ deletedAt: new Date() });
-      userRepository.findOne.mockResolvedValue(user);
+      clientRepository.findOne.mockResolvedValue({
+        id: dto.clientId!,
+        user,
+      } as Client);
 
       await expect(projectsService.create(dto)).rejects.toThrow(
         BadRequestException,
@@ -360,7 +398,10 @@ describe('ProjectsService', () => {
         clientId: 'u1a2b3c4-d5e6-7890-abcd-ef1234567890',
       };
       const user = buildUser({ status: UserStatus.INACTIVE });
-      userRepository.findOne.mockResolvedValue(user);
+      clientRepository.findOne.mockResolvedValue({
+        id: dto.clientId!,
+        user,
+      } as Client);
 
       await expect(projectsService.create(dto)).rejects.toThrow(
         BadRequestException,
@@ -450,12 +491,14 @@ describe('ProjectsService', () => {
       const query = buildFindProjectsQuery();
       const result = await projectsService.findAll(query);
 
-      expect(result).toEqual(buildPaginatedResponse(projects, 2));
+      expect(result).toEqual(
+        buildPaginatedResponse(projects.map(buildPublicProjectResponse), 2),
+      );
       expect(projectRepository.findAndCount).toHaveBeenCalledWith(
         expect.objectContaining({
           skip: 0,
           take: 10,
-          relations: ['images', 'services', 'client'],
+          relations: ['images', 'images.media', 'services', 'client'],
           order: { createdAt: 'DESC' },
         }),
       );
@@ -512,7 +555,9 @@ describe('ProjectsService', () => {
       const query = buildFindProjectsQuery();
       const result = await projectsService.findAllAdmin(query);
 
-      expect(result).toEqual(buildPaginatedResponse(projects, 2));
+      expect(result).toEqual(
+        buildPaginatedResponse(projects.map(buildPublicProjectResponse), 2),
+      );
       expect(projectRepository.findAndCount).toHaveBeenCalledWith(
         expect.objectContaining({ withDeleted: true }),
       );
@@ -526,7 +571,7 @@ describe('ProjectsService', () => {
 
       const result = await projectsService.findOne(project.id);
 
-      expect(result).toBe(project);
+      expect(result).toEqual(buildPublicProjectResponse(project));
       expect(projectRepository.findOne).toHaveBeenCalledTimes(1);
     });
 
@@ -602,7 +647,10 @@ describe('ProjectsService', () => {
       };
 
       projectRepository.findOne.mockResolvedValue(project);
-      userRepository.findOne.mockResolvedValue(user);
+      clientRepository.findOne.mockResolvedValue({
+        id: dto.clientId!,
+        user,
+      } as Client);
 
       await expect(projectsService.update(project.id, dto)).rejects.toThrow(
         BadRequestException,

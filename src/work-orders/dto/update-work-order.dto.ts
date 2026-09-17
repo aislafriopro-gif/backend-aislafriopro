@@ -28,7 +28,7 @@ export class UpdateWorkOrderDto {
     example: 'Se realizó la instalación del material en el sitio.',
   })
   @IsOptional()
-  @IsString()
+  @IsString({ message: 'El trabajo realizado debe ser una cadena de texto.' })
   workDone?: string;
 
   @ApiPropertyOptional({
@@ -36,7 +36,7 @@ export class UpdateWorkOrderDto {
     example: 'Se requiere volver el próximo lunes para revisión final.',
   })
   @IsOptional()
-  @IsString()
+  @IsString({ message: 'Las observaciones deben ser una cadena de texto.' })
   observations?: string;
 
   @ApiPropertyOptional({
@@ -50,8 +50,11 @@ export class UpdateWorkOrderDto {
     ],
   })
   @IsOptional()
-  @IsArray()
-  @ValidateNested({ each: true })
+  @IsArray({ message: 'Los materiales deben ser una lista.' })
+  @ValidateNested({
+    each: true,
+    message: 'Cada material debe tener un formato válido.',
+  })
   @Type(() => MaterialDto)
   materials?: MaterialDto[];
 

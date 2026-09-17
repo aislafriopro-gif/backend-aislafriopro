@@ -48,6 +48,7 @@ describe('ClientsController', () => {
       page: 1,
       limit: 10,
       totalPages: 1,
+      hasMore: false,
     };
 
     findAllMock.mockResolvedValue(response);

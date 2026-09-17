@@ -6,7 +6,7 @@ export class GoogleAuthDto {
     example: 'google-id-token',
     description: 'ID token emitido por Google Identity Services.',
   })
-  @IsString()
-  @IsNotEmpty()
+  @IsString({ message: 'El ID token debe ser una cadena de texto.' })
+  @IsNotEmpty({ message: 'El ID token es obligatorio.' })
   idToken!: string;
 }

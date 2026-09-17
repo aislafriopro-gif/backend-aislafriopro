@@ -76,6 +76,7 @@ const buildPaginatedResponse = <T>(
   page: 1,
   limit: 10,
   totalPages: total === 0 ? 0 : Math.ceil(total / 10),
+  hasMore: 10 < total,
 });
 
 describe('QuoteRequestsService', () => {
@@ -209,7 +210,7 @@ describe('QuoteRequestsService', () => {
       ['name', 'name', 'x'.repeat(151)],
       ['email', 'email', 'a'.repeat(256) + '@example.com'],
       ['phone', 'phone', '1'.repeat(51)],
-      ['message', 'message', 'x'.repeat(1001)],
+      ['message', 'message', 'x'.repeat(2001)],
     ];
 
     it.each(maxLengthCases)(
@@ -246,7 +247,7 @@ describe('QuoteRequestsService', () => {
 
     it('debe rechazar un message que no alcance el mínimo o supere el máximo', async () => {
       const tooShort = buildValidDto({ message: 'Muy corto' });
-      const tooLong = buildValidDto({ message: 'A'.repeat(1001) });
+      const tooLong = buildValidDto({ message: 'A'.repeat(2001) });
 
       const shortErrors = await validate(tooShort);
       const longErrors = await validate(tooLong);

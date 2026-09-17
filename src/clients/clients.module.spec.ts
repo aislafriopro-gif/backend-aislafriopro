@@ -1,6 +1,7 @@
 import { Test } from '@nestjs/testing';
 import { getRepositoryToken } from '@nestjs/typeorm';
 import { QuoteRequest } from '../quote-requests/entities/quote-request.entity';
+import { WorkOrder } from '../work-orders/entities/work-order.entity';
 import { Client } from './entities/client.entity';
 import { ClientsController } from './clients.controller';
 import { ClientsModule } from './clients.module';
@@ -14,6 +15,8 @@ describe('ClientsModule', () => {
       .overrideProvider(getRepositoryToken(Client))
       .useValue({})
       .overrideProvider(getRepositoryToken(QuoteRequest))
+      .useValue({})
+      .overrideProvider(getRepositoryToken(WorkOrder))
       .useValue({})
       .compile();
 

@@ -309,6 +309,7 @@ describe('QuoteRequestsController (integration)', () => {
         page: 1,
         limit: 10,
         totalPages: 0,
+        hasMore: false,
       });
     });
 
@@ -330,6 +331,7 @@ describe('QuoteRequestsController (integration)', () => {
           page: 1,
           limit: 10,
           totalPages: 1,
+          hasMore: false,
         }),
       );
       expect(response.body.data).toHaveLength(2);
