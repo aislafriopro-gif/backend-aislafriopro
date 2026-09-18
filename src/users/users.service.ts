@@ -65,6 +65,17 @@ export class UsersService {
       );
     }
 
+    const existingPhone = await this.userRepository.findOne({
+      where: { phone: dto.phone },
+      withDeleted: true,
+    });
+
+    if (existingPhone) {
+      throw new ConflictException(
+        `User with phone "${dto.phone}" already exists`,
+      );
+    }
+
     const defaultRole = await this.roleRepository.findOneBy({
       name: RoleName.USER,
     });
@@ -76,6 +87,7 @@ export class UsersService {
     const user = this.userRepository.create({
       name: dto.name,
       email: dto.email,
+      phone: dto.phone,
       password: hashedPassword,
       role: defaultRole,
     });
@@ -177,6 +189,18 @@ export class UsersService {
       if (existingUser) {
         throw new ConflictException(
           `User with email "${dto.email}" already exists`,
+        );
+      }
+    }
+    if (dto.phone && dto.phone !== user.phone) {
+      const existingUser = await this.userRepository.findOne({
+        where: { phone: dto.phone },
+        withDeleted: true,
+      });
+
+      if (existingUser) {
+        throw new ConflictException(
+          `User with phone "${dto.phone}" already exists`,
         );
       }
     }

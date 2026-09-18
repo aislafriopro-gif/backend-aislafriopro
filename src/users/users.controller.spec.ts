@@ -102,6 +102,7 @@ describe('UsersController', () => {
       const dto = {
         name: 'Nuevo Usuario',
         email: 'nuevo@aislafriopro.com',
+        phone: '+5491112345678',
         password: 'Password123',
       };
       const createdUser = buildUser({ name: dto.name, email: dto.email });

@@ -7,16 +7,16 @@ export class MaterialDto {
     description: 'Nombre del material',
     example: 'Aislante térmico',
   })
-  @IsString()
-  @IsNotEmpty()
+  @IsString({ message: 'El nombre del material debe ser una cadena de texto.' })
+  @IsNotEmpty({ message: 'El nombre del material es obligatorio.' })
   name!: string;
 
   @ApiProperty({
     description: 'Cantidad del material',
     example: '12 unidades',
   })
-  @IsString()
-  @IsNotEmpty()
+  @IsString({ message: 'La cantidad del material debe ser una cadena de texto.' })
+  @IsNotEmpty({ message: 'La cantidad del material es obligatoria.' })
   quantity!: string;
 }
 
@@ -25,8 +25,8 @@ export class DiligenceDto {
     description: 'Detalle del trabajo realizado por el técnico',
     example: 'Instalación completa de paneles y verificación de hermeticidad.',
   })
-  @IsString()
-  @IsNotEmpty()
+  @IsString({ message: 'El trabajo realizado debe ser una cadena de texto.' })
+  @IsNotEmpty({ message: 'El trabajo realizado es obligatorio.' })
   workDone!: string;
 
   @ApiProperty({
@@ -34,8 +34,8 @@ export class DiligenceDto {
     example:
       'Todo funcionando con normalidad. Se recomienda mantenimiento preventivo en 6 meses.',
   })
-  @IsString()
-  @IsNotEmpty()
+  @IsString({ message: 'Las observaciones deben ser una cadena de texto.' })
+  @IsNotEmpty({ message: 'Las observaciones son obligatorias.' })
   observations!: string;
 
   @ApiProperty({
@@ -43,8 +43,11 @@ export class DiligenceDto {
     type: () => [MaterialDto],
     example: [{ name: 'Aislante térmico', quantity: '12 metros' }],
   })
-  @IsArray()
-  @ValidateNested({ each: true })
+  @IsArray({ message: 'Los materiales deben ser una lista.' })
+  @ValidateNested({
+    each: true,
+    message: 'Cada material debe tener un formato válido.',
+  })
   @Type(() => MaterialDto)
   materials!: MaterialDto[];
 }

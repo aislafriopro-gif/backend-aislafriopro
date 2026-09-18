@@ -13,9 +13,9 @@ export class UpdateUserDto {
     example: 'Juan Pérez',
     required: false,
   })
-  @IsString()
-  @IsNotEmpty()
   @IsOptional()
+  @IsString({ message: 'El nombre debe ser una cadena de texto.' })
+  @IsNotEmpty({ message: 'El nombre es obligatorio.' })
   name?: string;
 
   @ApiProperty({
@@ -23,8 +23,8 @@ export class UpdateUserDto {
     example: 'juan@example.com',
     required: false,
   })
-  @IsEmail()
   @IsOptional()
+  @IsEmail({}, { message: 'El email debe tener un formato válido.' })
   email?: string;
 
   @ApiProperty({
@@ -32,8 +32,8 @@ export class UpdateUserDto {
     example: '+5491112345678',
     required: false,
   })
-  @IsString()
   @IsOptional()
+  @IsString({ message: 'El teléfono debe ser una cadena de texto.' })
   @Matches(/^[+]?[\d\s\-()]{6,20}$/, {
     message: 'El teléfono no tiene un formato válido',
   })
