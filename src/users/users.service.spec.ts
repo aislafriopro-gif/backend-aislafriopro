@@ -261,6 +261,7 @@ describe('UsersService', () => {
       const dto: CreateUserDto = {
         name: 'Nuevo Usuario',
         email: 'nuevo@aislafriopro.com',
+        phone: '+5491112345678',
         password: 'Password123',
       };
       const defaultRole = buildRole({ id: 'role-1', name: RoleName.USER });
@@ -272,11 +273,11 @@ describe('UsersService', () => {
         role: defaultRole,
       });
 
-      findOneUserMock.mockResolvedValue(null);
-      findOneByRoleMock.mockResolvedValue(defaultRole);
       findOneUserMock
         .mockResolvedValueOnce(null)
+        .mockResolvedValueOnce(null)
         .mockResolvedValueOnce(savedUser);
+      findOneByRoleMock.mockResolvedValue(defaultRole);
 
       const result = await usersService.create(dto);
 
@@ -285,6 +286,7 @@ describe('UsersService', () => {
       expect(createUserMock).toHaveBeenCalledWith({
         name: dto.name,
         email: dto.email,
+        phone: dto.phone,
         password: MOCK_HASHED_PASSWORD,
         role: defaultRole,
       });
@@ -295,6 +297,7 @@ describe('UsersService', () => {
       const dto: CreateUserDto = {
         name: 'Nuevo Usuario',
         email: 'nuevo@aislafriopro.com',
+        phone: '+5491112345678',
         password: 'Password123',
       };
       const existingUser = buildUser({
@@ -311,10 +314,36 @@ describe('UsersService', () => {
       );
     });
 
+    it('debe rechazar un teléfono duplicado incluso si el usuario fue eliminado', async () => {
+      const dto: CreateUserDto = {
+        name: 'Nuevo Usuario',
+        email: 'nuevo@aislafriopro.com',
+        phone: '+5491112345678',
+        password: 'Password123',
+      };
+      const existingUser = buildUser({
+        id: 'user-1',
+        phone: dto.phone,
+        deletedAt: new Date(),
+      });
+
+      findOneUserMock
+        .mockResolvedValueOnce(null)
+        .mockResolvedValueOnce(existingUser);
+
+      const result = usersService.create(dto);
+
+      await expect(result).rejects.toThrow(ConflictException);
+      await expect(result).rejects.toThrow(
+        `User with phone "${dto.phone}" already exists`,
+      );
+    });
+
     it('debe lanzar NotFoundException si no existe el rol USER', async () => {
       const dto: CreateUserDto = {
         name: 'Nuevo Usuario',
         email: 'nuevo@aislafriopro.com',
+        phone: '+5491112345678',
         password: 'Password123',
       };
 
