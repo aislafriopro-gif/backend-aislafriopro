@@ -37,6 +37,7 @@ export interface ApplicationConfiguration {
   };
   google: {
     clientId: string;
+    clientSecret?: string;
   };
   cloudinary: {
     cloudName: string;
@@ -412,6 +413,7 @@ export function validateEnvironment(
   );
 
   readRequiredString(source, 'GOOGLE_CLIENT_ID');
+  readOptionalString(source, 'GOOGLE_CLIENT_SECRET');
 
   readCloudinaryConfiguration(source);
 
@@ -476,6 +478,8 @@ export default (): ApplicationConfiguration => {
     },
     google: {
       clientId: readRequiredString(process.env, 'GOOGLE_CLIENT_ID'),
+      clientSecret:
+        readOptionalString(process.env, 'GOOGLE_CLIENT_SECRET') ?? undefined,
     },
     cloudinary: readCloudinaryConfiguration(process.env),
   };
