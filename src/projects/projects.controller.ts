@@ -33,7 +33,7 @@ import { ProjectPublicResponseDto } from './dto/project-public-response.dto';
 import { UpdateProjectDto } from './dto/update-project.dto';
 import { Project } from './entities/project.entity';
 import { ProjectsService } from './projects.service';
-import { Public } from 'src/common/decorators/public.decorator';
+import { Public } from '../common/decorators/public.decorator';
 
 @ApiTags('Projects')
 @Controller('projects')

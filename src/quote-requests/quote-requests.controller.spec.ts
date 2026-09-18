@@ -46,6 +46,7 @@ const buildPaginatedResponse = <T>(data: T[], total: number) => ({
   page: 1,
   limit: 10,
   totalPages: total === 0 ? 0 : Math.ceil(total / 10),
+  hasMore: total > 10,
 });
 
 describe('QuoteRequestsController', () => {
