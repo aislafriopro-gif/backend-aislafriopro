@@ -468,7 +468,13 @@ Prueba los tipos `STRING`, `NUMBER`, `BOOLEAN` y `JSON` según las opciones que 
 
 `GET /api/v1/dashboard/stats` — autenticado, `200`.
 
-Ejecuta con ADMIN después de crear algunos registros. Compara los totales y agrupaciones por estado con lo que devolvieron los listados de usuarios, cotizaciones y órdenes. Luego prueba sin token (`401`). No inventes campos: registra exactamente la estructura que devuelva Swagger/tu instancia.
+Ejecuta con los tres roles principales y compara los totales contra los listados reales:
+
+- ADMIN: debe ver totales globales de cotizaciones, órdenes, proyectos y productos.
+- TECHNICIAN: debe ver el conteo real de sus órdenes asignadas por estado (`PENDING`, `IN_PROGRESS`, `COMPLETED`).
+- CLIENT: debe ver el conteo real de sus cotizaciones por email y de sus órdenes asociadas a su perfil `Client`.
+
+Luego prueba sin token (`401`). No inventes campos: registra exactamente la estructura que devuelva Swagger/tu instancia.
 
 ## 6. Pruebas transversales y negativas
 

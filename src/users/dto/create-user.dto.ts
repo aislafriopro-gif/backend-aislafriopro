@@ -1,5 +1,12 @@
 import { ApiProperty } from '@nestjs/swagger';
-import { IsEmail, IsNotEmpty, IsString, MinLength } from 'class-validator';
+import {
+  IsEmail,
+  IsNotEmpty,
+  IsString,
+  Matches,
+  MaxLength,
+  MinLength,
+} from 'class-validator';
 
 export class CreateUserDto {
   @ApiProperty({
@@ -16,6 +23,18 @@ export class CreateUserDto {
   })
   @IsEmail()
   email!: string;
+
+  @ApiProperty({
+    description: 'Teléfono único del usuario',
+    example: '+5491112345678',
+  })
+  @IsString()
+  @IsNotEmpty()
+  @MaxLength(20)
+  @Matches(/^[+]?[\d\s\-()]{6,20}$/, {
+    message: 'El teléfono no tiene un formato válido',
+  })
+  phone!: string;
 
   @ApiProperty({
     description: 'Contraseña del usuario',

@@ -30,6 +30,10 @@ export enum AuthProvider {
   unique: true,
   where: '"deletedAt" IS NULL',
 })
+@Index('UQ_users_phone', ['phone'], {
+  unique: true,
+  where: '"phone" IS NOT NULL',
+})
 export class User {
   @PrimaryGeneratedColumn('uuid')
   id!: string;

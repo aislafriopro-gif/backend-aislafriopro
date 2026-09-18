@@ -13,6 +13,7 @@ import {
   WorkOrder,
   WorkOrderStatus,
 } from '../work-orders/entities/work-order.entity';
+import { Client } from '../clients/entities/client.entity';
 
 interface DashboardRequestUser {
   userId: string;
@@ -31,17 +32,19 @@ export class DashboardService {
     private readonly productRepository: Repository<Product>,
     @InjectRepository(WorkOrder)
     private readonly workOrderRepository: Repository<WorkOrder>,
+    @InjectRepository(Client)
+    private readonly clientRepository: Repository<Client>,
   ) {}
 
   async getStats(
     requestUser: DashboardRequestUser,
   ): Promise<DashboardStatsResponseDto> {
     if (requestUser.role === RoleName.CLIENT) {
-      return this.getClientStats(requestUser.email);
+      return this.getClientStats(requestUser);
     }
 
     if (requestUser.role === RoleName.TECHNICIAN) {
-      return this.getTechnicianStats();
+      return this.getTechnicianStats(requestUser.userId);
     }
 
     return this.getAdminStats();
@@ -108,60 +111,110 @@ export class DashboardService {
   }
 
   private async getClientStats(
-    email: string,
+    requestUser: DashboardRequestUser,
   ): Promise<DashboardStatsResponseDto> {
+    const client = await this.clientRepository.findOne({
+      where: { userId: requestUser.userId },
+    });
+
+    const clientId = client?.id;
+
     const [
       totalQuotes,
       newQuotes,
       inProgressQuotes,
       resolvedQuotes,
       rejectedQuotes,
+      pendingWorkOrders,
+      inProgressWorkOrders,
+      completedWorkOrders,
     ] = await Promise.all([
       this.quoteRequestRepository.count({
-        where: { email },
+        where: { email: requestUser.email },
       }),
       this.quoteRequestRepository.count({
-        where: { email, status: QuoteRequestStatus.NEW },
+        where: { email: requestUser.email, status: QuoteRequestStatus.NEW },
       }),
       this.quoteRequestRepository.count({
-        where: { email, status: QuoteRequestStatus.IN_PROGRESS },
+        where: {
+          email: requestUser.email,
+          status: QuoteRequestStatus.IN_PROGRESS,
+        },
       }),
       this.quoteRequestRepository.count({
-        where: { email, status: QuoteRequestStatus.RESOLVED },
+        where: {
+          email: requestUser.email,
+          status: QuoteRequestStatus.RESOLVED,
+        },
       }),
       this.quoteRequestRepository.count({
-        where: { email, status: QuoteRequestStatus.REJECTED },
+        where: {
+          email: requestUser.email,
+          status: QuoteRequestStatus.REJECTED,
+        },
       }),
+      clientId
+        ? this.workOrderRepository.count({
+            where: { clientId, status: WorkOrderStatus.PENDING },
+          })
+        : Promise.resolve(0),
+      clientId
+        ? this.workOrderRepository.count({
+            where: { clientId, status: WorkOrderStatus.IN_PROGRESS },
+          })
+        : Promise.resolve(0),
+      clientId
+        ? this.workOrderRepository.count({
+            where: { clientId, status: WorkOrderStatus.COMPLETED },
+          })
+        : Promise.resolve(0),
     ]);
 
     return this.buildResponse({
       totalQuotes,
-      totalWorkOrders: 0,
+      totalWorkOrders:
+        pendingWorkOrders + inProgressWorkOrders + completedWorkOrders,
       totalProjects: 0,
       totalProducts: 0,
       newQuotes,
       inProgressQuotes,
       resolvedQuotes,
       rejectedQuotes,
-      pendingWorkOrders: 0,
-      inProgressWorkOrders: 0,
-      completedWorkOrders: 0,
+      pendingWorkOrders,
+      inProgressWorkOrders,
+      completedWorkOrders,
     });
   }
 
-  private getTechnicianStats(): DashboardStatsResponseDto {
+  private async getTechnicianStats(
+    technicianId: string,
+  ): Promise<DashboardStatsResponseDto> {
+    const [pendingWorkOrders, inProgressWorkOrders, completedWorkOrders] =
+      await Promise.all([
+        this.workOrderRepository.count({
+          where: { technicianId, status: WorkOrderStatus.PENDING },
+        }),
+        this.workOrderRepository.count({
+          where: { technicianId, status: WorkOrderStatus.IN_PROGRESS },
+        }),
+        this.workOrderRepository.count({
+          where: { technicianId, status: WorkOrderStatus.COMPLETED },
+        }),
+      ]);
+
     return this.buildResponse({
       totalQuotes: 0,
-      totalWorkOrders: 0,
+      totalWorkOrders:
+        pendingWorkOrders + inProgressWorkOrders + completedWorkOrders,
       totalProjects: 0,
       totalProducts: 0,
       newQuotes: 0,
       inProgressQuotes: 0,
       resolvedQuotes: 0,
       rejectedQuotes: 0,
-      pendingWorkOrders: 0,
-      inProgressWorkOrders: 0,
-      completedWorkOrders: 0,
+      pendingWorkOrders,
+      inProgressWorkOrders,
+      completedWorkOrders,
     });
   }
 
@@ -189,7 +242,6 @@ export class DashboardService {
         RESOLVED: input.resolvedQuotes,
         REJECTED: input.rejectedQuotes,
       },
-      // TODO: integrar conteos reales de WorkOrder en dashboard/stats.
       workOrdersByStatus: {
         PENDING: input.pendingWorkOrders,
         IN_PROGRESS: input.inProgressWorkOrders,
